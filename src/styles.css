@@ -1,0 +1,1126 @@
+:root {
+  color: #2f302b;
+  background: #f4efe6;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.9), transparent 28rem),
+    linear-gradient(180deg, #f7f2ea 0%, #ede4d7 100%);
+}
+
+html {
+  scrollbar-width: none;
+}
+
+body::-webkit-scrollbar {
+  display: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+.appShell {
+  min-height: 100vh;
+  padding: max(14px, env(safe-area-inset-top)) 14px calc(92px + env(safe-area-inset-bottom));
+}
+
+.phoneFrame {
+  width: min(100%, 430px);
+  margin: 0 auto;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.screenHeader {
+  padding: 8px 4px 2px;
+}
+
+.screenHeader span,
+.muted {
+  color: #85806f;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.screenHeader h1 {
+  margin: 4px 0 0;
+  font-size: 2.25rem;
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+.card,
+.heroCard,
+.dayCard {
+  border: 1px solid rgba(95, 91, 70, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 45px rgba(82, 73, 52, 0.08);
+}
+
+.heroCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 166px;
+  padding: 20px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(240, 232, 216, 0.94)),
+    #ffffff;
+}
+
+.heroCard h2 {
+  max-width: 13rem;
+  margin: 8px 0;
+  font-size: 1.45rem;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.heroCard p {
+  margin: 0;
+  color: #716c5d;
+}
+
+.compactHero {
+  min-height: 112px;
+}
+
+.weekHero {
+  background:
+    linear-gradient(135deg, rgba(232, 237, 215, 0.96), rgba(255, 255, 255, 0.92)),
+    #ffffff;
+}
+
+.card {
+  padding: 16px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sectionTitle h2,
+.habitRowHead h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.sectionTitle span {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: #6f7a4a;
+  background: #eef2df;
+  font-weight: 800;
+}
+
+.ring {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.ring svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.ringTrack {
+  fill: none;
+  stroke: #ede9e0;
+}
+
+.ringValue {
+  fill: none;
+  stroke: #87915f;
+  stroke-linecap: round;
+}
+
+.ring strong {
+  color: #6e7652;
+  font-size: 1rem;
+}
+
+.addForm {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.addForm input,
+.settingsHabit input,
+.taskBody input,
+.goalItem input,
+.searchInput,
+textarea {
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid #e5dfd2;
+  border-radius: 8px;
+  outline: 0;
+  background: #fbfaf6;
+  color: #2f302b;
+}
+
+.addForm input,
+.settingsHabit input,
+.taskBody input,
+.goalItem input,
+.searchInput {
+  padding: 0 14px;
+}
+
+.addForm input:focus,
+.settingsHabit input:focus,
+.taskBody input:focus,
+.goalItem input:focus,
+.searchInput:focus,
+textarea:focus {
+  border-color: #9aa472;
+  box-shadow: 0 0 0 4px rgba(135, 145, 95, 0.14);
+}
+
+.addForm button,
+.actionsCard button {
+  min-height: 48px;
+  border-radius: 8px;
+  background: #87915f;
+  color: white;
+  font-weight: 900;
+}
+
+.addForm button {
+  width: 52px;
+  font-size: 1.5rem;
+}
+
+.taskList,
+.settingsList,
+.habitList,
+.goals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.taskItem {
+  display: grid;
+  grid-template-columns: 42px 1fr 34px;
+  align-items: start;
+  gap: 10px;
+  min-height: 76px;
+  padding: 10px;
+  border: 1px solid #ece4d5;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fffdf8 0%, #f7f4ed 100%);
+  box-shadow: 0 10px 26px rgba(82, 73, 52, 0.05);
+}
+
+.taskItem span {
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+.taskItem.isDone span {
+  color: #8b887c;
+  text-decoration: line-through;
+}
+
+.taskBody {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.taskBody input,
+.goalItem input {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #34352f;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.taskBody input:focus {
+  box-shadow: none;
+}
+
+.taskItem.isDone .taskBody input,
+.goalItem.isDone input {
+  color: #8b887c;
+  text-decoration: line-through;
+}
+
+.taskMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.metaChip {
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #eee8db;
+  color: #625e51;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.metaChip.priority-high {
+  background: #efe3d6;
+  color: #8b4d3f;
+}
+
+.metaChip.priority-normal {
+  background: #e9edd8;
+  color: #59633a;
+}
+
+.metaChip.priority-low {
+  background: #f1ece2;
+  color: #7c7463;
+}
+
+.metaChip.repeat-daily,
+.metaChip.repeat-weekly {
+  background: #e3ead2;
+  color: #566135;
+}
+
+.dayMoveRail {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(237, 231, 218, 0.72);
+}
+
+.dayMoveRail button {
+  min-height: 28px;
+  border-radius: 7px;
+  background: transparent;
+  color: #827b69;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.dayMoveRail button.active {
+  background: #ffffff;
+  color: #59633a;
+  box-shadow: 0 1px 8px rgba(82, 73, 52, 0.08);
+}
+
+.overdueCard {
+  border-color: #ead9bd;
+}
+
+.cardHint {
+  margin: -2px 0 12px;
+  color: #7d7668;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.historyList div,
+.searchResults div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f7f4ed;
+}
+
+.overdueItem {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fff9ef;
+  border: 1px solid #efe2cd;
+}
+
+.overdueItem div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.overdueItem strong {
+  color: #3d3a32;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+}
+
+.overdueItem span {
+  width: fit-content;
+  border-radius: 999px;
+  background: #f0e6d4;
+  color: #7a6748;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.searchResults span {
+  overflow-wrap: anywhere;
+}
+
+.overdueActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 36px;
+  gap: 6px;
+}
+
+.overdueActions button {
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #e8edd7;
+  color: #59633a;
+  font-weight: 800;
+}
+
+.overdueActions .plainDanger {
+  padding: 0;
+  background: #f3e6df;
+  color: #8b4d3f;
+  font-size: 1.1rem;
+}
+
+.checkButton,
+.deleteButton,
+.settingsHabit button {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.checkButton {
+  background: #ffffff;
+  color: #6f7a4a;
+  box-shadow: inset 0 0 0 2px #d9ddc6;
+  margin-top: 1px;
+}
+
+.taskItem.isDone .checkButton {
+  background: #87915f;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.deleteButton,
+.settingsHabit button {
+  background: transparent;
+  color: #a19886;
+  font-size: 1.25rem;
+}
+
+.taskItem .deleteButton {
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+}
+
+.habitChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.habitChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #f6f2e9;
+  color: #565346;
+  font-weight: 700;
+}
+
+.habitChip span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #ffffff;
+}
+
+.habitChip.isDone {
+  background: #e6ecd4;
+  color: #59633a;
+}
+
+.habitChip.isDone span {
+  background: #87915f;
+}
+
+.metricControl {
+  display: grid;
+  grid-template-columns: 78px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: #625e51;
+}
+
+.metricControl input {
+  accent-color: #87915f;
+}
+
+.metricControl strong {
+  color: #3d412c;
+  text-align: right;
+}
+
+.moodLine {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f3f0e8;
+  color: #6a644e;
+  font-weight: 800;
+}
+
+.summaryLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 800;
+}
+
+textarea {
+  min-height: 118px;
+  resize: vertical;
+  padding: 12px 14px;
+  line-height: 1.35;
+}
+
+.goalItem {
+  display: grid;
+  grid-template-columns: 38px 1fr 38px;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f8f5ee;
+}
+
+.goalItem button:first-child {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: #ede7da;
+  color: #5c584b;
+  font-weight: 900;
+}
+
+.goalItem.isDone button:first-child {
+  background: #87915f;
+  color: white;
+}
+
+.dayCards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.dayCard {
+  padding: 14px;
+  color: inherit;
+  text-align: left;
+}
+
+.dayCard.isToday {
+  border-color: rgba(135, 145, 95, 0.42);
+  background: #fffdf8;
+}
+
+.dayCard.isSelected {
+  box-shadow:
+    0 0 0 2px rgba(135, 145, 95, 0.32),
+    0 18px 45px rgba(82, 73, 52, 0.08);
+}
+
+.dayCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dayCardTop span,
+.dayCard p,
+.habitRowHead p {
+  margin: 0;
+  color: #827b69;
+}
+
+.dayCardTop strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.miniTasks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.miniTasks span {
+  overflow: hidden;
+  color: #5c584b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.miniTasks .done {
+  color: #999384;
+  text-decoration: line-through;
+}
+
+.habitRowHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.habitRowHead strong {
+  color: #6f7a4a;
+}
+
+.weekDots {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.weekDots button {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 44px;
+  border-radius: 8px;
+  background: #f4f0e7;
+  color: #827b69;
+  font-weight: 900;
+}
+
+.weekDots button.active {
+  background: #87915f;
+  color: #ffffff;
+}
+
+.weekDots span {
+  font-size: 0.73rem;
+}
+
+.settingsHabit {
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  gap: 8px;
+}
+
+.splitProgress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.splitProgress span,
+.backupNote {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.48);
+  padding: 6px 10px;
+  color: #625e51;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.segmented button {
+  min-height: 44px;
+  border-radius: 8px;
+  background: #f4f0e7;
+  color: #5f5b4c;
+  font-weight: 800;
+}
+
+.segmented button.active {
+  background: #e8edd7;
+  color: #59633a;
+}
+
+.searchResults,
+.historyList {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.searchResults strong,
+.historyList span {
+  color: #6f7a4a;
+  font-size: 0.78rem;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.statGrid div {
+  min-height: 72px;
+  border-radius: 8px;
+  background: #f7f4ed;
+  padding: 12px;
+}
+
+.statGrid span {
+  display: block;
+  color: #827b69;
+  font-size: 0.78rem;
+}
+
+.statGrid strong {
+  display: block;
+  margin-top: 6px;
+  color: #3d412c;
+  font-size: 1.35rem;
+}
+
+.actionsCard {
+  display: grid;
+  gap: 10px;
+}
+
+.actionsCard button {
+  width: 100%;
+}
+
+.actionsCard .secondaryButton {
+  background: #f4f0e7;
+  color: #5f5b4c;
+}
+
+.actionsCard .dangerButton {
+  color: #8b4d3f;
+}
+
+.dangerButton {
+  background: #f3e6df;
+  color: #8b4d3f;
+}
+
+.secondaryButton {
+  background: #f4f0e7;
+  color: #5f5b4c;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  align-items: end;
+  background: rgba(47, 48, 43, 0.28);
+  padding: 18px;
+}
+
+.confirmSheet {
+  width: min(100%, 430px);
+  margin: 0 auto calc(76px + env(safe-area-inset-bottom));
+  border: 1px solid #e7ddcd;
+  border-radius: 12px;
+  background: #fffdfa;
+  box-shadow: 0 24px 70px rgba(71, 62, 42, 0.2);
+  padding: 16px;
+}
+
+.confirmSheet h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.confirmSheet p {
+  margin: 0 0 14px;
+  color: #6f6a5c;
+  line-height: 1.35;
+}
+
+.confirmSheet div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.confirmSheet button,
+.card > .secondaryButton {
+  min-height: 48px;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.sheetOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  align-items: end;
+  background: rgba(47, 48, 43, 0.28);
+  padding: 18px;
+}
+
+.addTaskSheet {
+  width: min(100%, 430px);
+  margin: 0 auto calc(78px + env(safe-area-inset-bottom));
+  border: 1px solid #e4dccd;
+  border-radius: 16px;
+  background: #fffdfa;
+  box-shadow: 0 24px 70px rgba(71, 62, 42, 0.22);
+  padding: 10px 14px 14px;
+}
+
+.sheetHandle {
+  width: 42px;
+  height: 4px;
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: #ded5c4;
+}
+
+.sheetClose {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #f4f0e7;
+  color: #8b4d3f;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.sheetTaskInput,
+.dateField input {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #e5dfd2;
+  border-radius: 10px;
+  outline: 0;
+  background: #fbfaf6;
+  color: #2f302b;
+  padding: 0 14px;
+}
+
+.sheetTaskInput {
+  margin: 8px 0 12px;
+  font-weight: 800;
+}
+
+.sheetTaskInput:focus,
+.dateField input:focus {
+  border-color: #9aa472;
+  box-shadow: 0 0 0 4px rgba(135, 145, 95, 0.14);
+}
+
+.dateQuickPick {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.dateQuickPick button {
+  min-height: 44px;
+  border-radius: 10px;
+  background: #f4f0e7;
+  color: #625e51;
+  font-weight: 900;
+}
+
+.dateQuickPick button.active {
+  background: #e8edd7;
+  color: #59633a;
+  box-shadow: inset 0 0 0 1px rgba(135, 145, 95, 0.24);
+}
+
+.dateField {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  color: #7d7668;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.selectedDateLine {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f7f4ed;
+}
+
+.selectedDateLine span {
+  color: #7d7668;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.selectedDateLine strong {
+  color: #3d412c;
+  font-size: 0.9rem;
+}
+
+.primarySheetButton {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 10px;
+  background: #87915f;
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.primarySheetButton:disabled {
+  cursor: not-allowed;
+  background: #d9d2c4;
+  color: #8b887c;
+}
+
+.emptyState {
+  padding: 14px;
+  border-radius: 8px;
+  background: #f8f5ee;
+  color: #77715f;
+}
+
+.emptyState strong {
+  color: #3a392f;
+}
+
+.emptyState p {
+  margin: 4px 0 0;
+}
+
+.bottomNav {
+  position: fixed;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 12px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: min(calc(100% - 24px), 430px);
+  min-height: 68px;
+  margin: 0 auto;
+  padding: 8px;
+  border: 1px solid rgba(81, 76, 61, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 40px rgba(66, 58, 43, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+.bottomNav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 52px;
+  border-radius: 8px;
+  background: transparent;
+  color: #847e6d;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.bottomNav button.active {
+  background: #e8edd7;
+  color: #59633a;
+}
+
+.bottomNav span {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.floatingAddButton {
+  position: fixed;
+  right: max(18px, calc((100vw - 430px) / 2 + 18px));
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 18;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: #87915f;
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 900;
+  box-shadow: 0 18px 42px rgba(89, 99, 58, 0.3);
+}
+
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  left: 18px;
+  z-index: 20;
+  width: min(calc(100% - 36px), 390px);
+  margin: 0 auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #2f302b;
+  color: #fffaf0;
+  box-shadow: 0 16px 40px rgba(47, 48, 43, 0.2);
+  font-weight: 800;
+  text-align: center;
+}
+
+@media (min-width: 500px) {
+  .appShell {
+    padding-top: 28px;
+  }
+
+  .phoneFrame {
+    border-radius: 28px;
+  }
+}
+
+@media (min-width: 760px) {
+  .appShell {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
+
+  .phoneFrame {
+    width: min(100%, 760px);
+  }
+
+  .screen {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+  }
+
+  .screenHeader,
+  .heroCard,
+  .weekHero,
+  .compactHero,
+  .dayCards,
+  .habitList {
+    grid-column: 1 / -1;
+  }
+
+  .dayCards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bottomNav {
+    width: min(calc(100% - 56px), 560px);
+  }
+}
+
+@media (min-width: 1120px) {
+  .phoneFrame {
+    width: min(100%, 980px);
+  }
+
+  .screen {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .screenHeader,
+  .heroCard,
+  .weekHero,
+  .compactHero {
+    grid-column: 1 / -1;
+  }
+
+  .dayCards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
