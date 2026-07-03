@@ -5,10 +5,13 @@ import {
   createEmptyState,
   createTask,
   ensureCurrentWeek,
+  getSelectedWeekDay,
+  getThemeColor,
   getUpcomingTasks,
   getWeekDays,
   isSavedPlannerState,
   normalizeState,
+  themePresets,
 } from "./main";
 
 describe("planner week rollover", () => {
@@ -66,6 +69,28 @@ describe("upcoming tasks", () => {
 
     expect(upcoming.map((item) => item.task.title)).toEqual(["Sooner", "Later"]);
     expect(upcoming.every((item) => item.day > weekDays[6])).toBe(true);
+  });
+});
+
+describe("week navigation", () => {
+  it("keeps today selected only when it belongs to the visible week", () => {
+    const currentWeek = getWeekDays("2026-07-06");
+    const nextWeek = getWeekDays("2026-07-13");
+
+    expect(getSelectedWeekDay("2026-07-08", currentWeek)).toBe("2026-07-08");
+    expect(getSelectedWeekDay("2026-07-08", nextWeek)).toBe("2026-07-13");
+  });
+});
+
+describe("theme presets", () => {
+  it("exposes saved app themes with status-bar colors", () => {
+    expect(themePresets).toHaveLength(8);
+    expect(new Set(themePresets.map((preset) => preset.id)).size).toBe(themePresets.length);
+
+    themePresets.forEach((preset) => {
+      expect(getThemeColor(preset.id)).toBe(preset.swatches[1]);
+      expect(getThemeColor(preset.id)).toMatch(/^#[0-9a-f]{6}$/i);
+    });
   });
 });
 

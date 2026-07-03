@@ -72,7 +72,7 @@ const repeatOptions: { value: TaskRepeat; label: string }[] = [
   { value: "daily", label: "каждый день" },
   { value: "weekly", label: "еженедельно" },
 ];
-const themePresets: { id: PlannerTheme; title: string; hint: string; swatches: string[] }[] = [
+export const themePresets: { id: PlannerTheme; title: string; hint: string; swatches: string[] }[] = [
   { id: "olive", title: "Олива", hint: "теплый базовый", swatches: ["#f4efe6", "#87915f", "#fffdfa"] },
   { id: "sage", title: "Шалфей", hint: "тихий зеленый", swatches: ["#eef2e8", "#6f8a67", "#fbfdf8"] },
   { id: "mint", title: "Мята", hint: "свежий светлый", swatches: ["#edf6f1", "#4f9b83", "#ffffff"] },
@@ -94,6 +94,7 @@ const parseISO = (iso: string) => new Date(`${iso}T12:00:00`);
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const nextPriority = (priority: TaskPriority) => priorityOptions[(priorityOptions.findIndex((option) => option.value === priority) + 1) % priorityOptions.length].value;
 const nextRepeat = (repeat: TaskRepeat) => repeatOptions[(repeatOptions.findIndex((option) => option.value === repeat) + 1) % repeatOptions.length].value;
+export const getThemeColor = (theme: PlannerTheme) => themePresets.find((preset) => preset.id === theme)?.swatches[1] ?? "#87915f";
 export const addDays = (iso: string, amount: number) => {
   const date = parseISO(iso);
   date.setDate(date.getDate() + amount);
@@ -119,6 +120,10 @@ export function getWeekDays(weekStart: string) {
     date.setDate(start.getDate() + index);
     return toISO(date);
   });
+}
+
+export function getSelectedWeekDay(today: string, weekDays: string[]) {
+  return weekDays.includes(today) ? today : weekDays[0];
 }
 
 function defaultLog(): DayLog {
@@ -611,8 +616,7 @@ function App() {
       .catch(() => setToast("Данные не сохранились. Сделайте экспорт JSON."));
   }, [appReady, state]);
   useEffect(() => {
-    const themeColor = themePresets.find((preset) => preset.id === state.settings.theme)?.swatches[1] ?? "#87915f";
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", themeColor);
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", getThemeColor(state.settings.theme));
   }, [state.settings.theme]);
   useEffect(() => {
     if (!toast) return;
@@ -1135,7 +1139,7 @@ function WeekScreen(props: ScreenProps) {
   const weekRange = `${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(parseISO(props.weekDays[0]))} - ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(parseISO(props.weekDays[6]))}`;
 
   useEffect(() => {
-    setSelectedDay(props.weekDays.includes(props.today) ? props.today : props.weekDays[0]);
+    setSelectedDay(getSelectedWeekDay(props.today, props.weekDays));
   }, [props.today, props.viewWeekStart, props.weekDays]);
 
   return (
