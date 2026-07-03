@@ -9,7 +9,9 @@ import {
   getThemeColor,
   getUpcomingTasks,
   getWeekDays,
+  getUnfinishedTasksForDays,
   isSavedPlannerState,
+  moveUnfinishedTasksToDay,
   normalizeState,
   themePresets,
 } from "./main";
@@ -79,6 +81,42 @@ describe("week navigation", () => {
 
     expect(getSelectedWeekDay("2026-07-08", currentWeek)).toBe("2026-07-08");
     expect(getSelectedWeekDay("2026-07-08", nextWeek)).toBe("2026-07-13");
+  });
+});
+
+describe("weekly review carry-over", () => {
+  it("moves unfinished tasks from a reviewed week into the target day", () => {
+    const sourceWeek = getWeekDays("2026-06-29");
+    const targetDay = "2026-07-08";
+    const state = createEmptyState("2026-06-29");
+    const doneTask = createTask("Closed", true);
+    const openTask = createTask("Still relevant", false, { priority: "high", repeat: "weekly" });
+    state.tasks[sourceWeek[0]] = [doneTask, openTask];
+    state.tasks[sourceWeek[2]] = [createTask("Second open", false)];
+    state.tasks[targetDay] = [createTask("Today already")];
+
+    const result = moveUnfinishedTasksToDay(state, sourceWeek, targetDay, "2026-07-08T10:00:00.000Z");
+
+    expect(result.moved).toBe(2);
+    expect(result.state.tasks[sourceWeek[0]].map((task) => task.title)).toEqual(["Closed"]);
+    expect(result.state.tasks[sourceWeek[2]]).toEqual([]);
+    expect(result.state.tasks[targetDay].map((task) => task.title)).toEqual(["Today already", "Still relevant", "Second open"]);
+    expect(result.state.tasks[targetDay][1].done).toBe(false);
+    expect(result.state.tasks[targetDay][1].updatedAt).toBe("2026-07-08T10:00:00.000Z");
+  });
+
+  it("keeps unfinished tasks that are already on the target day", () => {
+    const week = getWeekDays("2026-07-06");
+    const state = createEmptyState("2026-07-06");
+    state.tasks[week[0]] = [createTask("Monday", false)];
+    state.tasks[week[1]] = [createTask("Tuesday", false)];
+
+    const result = moveUnfinishedTasksToDay(state, week, week[1], "2026-07-08T10:00:00.000Z");
+
+    expect(result.moved).toBe(1);
+    expect(result.state.tasks[week[0]]).toEqual([]);
+    expect(result.state.tasks[week[1]].map((task) => task.title)).toEqual(["Tuesday", "Monday"]);
+    expect(getUnfinishedTasksForDays(result.state.tasks, [week[0]])).toEqual([]);
   });
 });
 

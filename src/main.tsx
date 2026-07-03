@@ -413,6 +413,35 @@ export function getUpcomingTasks(tasks: Record<string, Task[]>, weekDays: string
     .slice(0, limit);
 }
 
+export function getUnfinishedTasksForDays(tasks: Record<string, Task[]>, days: string[]): DatedTask[] {
+  return days.flatMap((day) => (tasks[day] ?? []).filter((task) => !task.done).map((task) => ({ day, task })));
+}
+
+export function moveUnfinishedTasksToDay(state: PlannerState, sourceDays: string[], targetDay: string, now = new Date().toISOString()) {
+  const sourceSet = new Set(sourceDays.filter((day) => day !== targetDay));
+  const moving = getUnfinishedTasksForDays(state.tasks, [...sourceSet]);
+  if (moving.length === 0) return { state, moved: 0 };
+
+  const movedTasks = moving.map(({ task }) => ({ ...task, done: false, updatedAt: now }));
+  const nextTasks = Object.fromEntries(
+    Object.entries(state.tasks).map(([day, tasksForDay]) => [
+      day,
+      sourceSet.has(day) ? tasksForDay.filter((task) => task.done) : tasksForDay,
+    ]),
+  );
+
+  return {
+    state: {
+      ...state,
+      tasks: {
+        ...nextTasks,
+        [targetDay]: [...(nextTasks[targetDay] ?? []), ...movedTasks],
+      },
+    },
+    moved: movedTasks.length,
+  };
+}
+
 export function compactBackup(state: PlannerState, label = "Автобэкап"): PlannerBackup {
   const snapshot = { ...state, backups: [] };
   return { id: uid(), createdAt: new Date().toISOString(), label, data: JSON.stringify(snapshot) };
@@ -667,6 +696,7 @@ function App() {
     .slice(0, todayIndex)
     .flatMap((day) => (state.tasks[day] ?? []).filter((task) => !task.done).map((task) => ({ day, task })));
   const upcomingTasks = getUpcomingTasks(state.tasks, weekDays);
+  const viewedWeekUnfinishedTasks = getUnfinishedTasksForDays(state.tasks, weekDays);
   const askConfirm = (title: string, text: string, confirmLabel: string, onConfirm: () => void, secondary?: { label: string; onClick: () => void }) =>
     setConfirmAction({ title, text, confirmLabel, onConfirm, secondaryLabel: secondary?.label, onSecondary: secondary?.onClick });
   const refreshStorageStatus = () => getStorageStatus().then(setStorageStatus).catch(() => undefined);
@@ -731,6 +761,25 @@ function App() {
       };
     });
     setToast("Задача перенесена");
+  };
+
+  const moveViewedWeekUnfinishedToToday = () => {
+    const count = getUnfinishedTasksForDays(state.tasks, weekDays).length;
+    if (count === 0) {
+      setToast("Незавершенных задач нет");
+      return;
+    }
+    askConfirm(
+      "Перенести хвосты в сегодня?",
+      `${count} незавершенных задач из открытой недели будут перемещены в сегодняшний список.`,
+      "Перенести",
+      () => {
+        updateState((current) => moveUnfinishedTasksToDay(current, weekDays, today).state);
+        setViewWeekStart(state.activeWeekStart);
+        setTab("today");
+        setToast(`${count} задач перенесено в сегодня`);
+      },
+    );
   };
 
   const addGoal = (title: string, targetWeekStart = viewWeekStart) => {
@@ -884,12 +933,14 @@ function App() {
     weekHabitProgress,
     overdueTasks,
     upcomingTasks,
+    viewedWeekUnfinishedTasks,
     addTaskForDay,
     toggleTask,
     deleteTask,
     renameTask,
     updateTaskMeta,
     moveTask,
+    moveViewedWeekUnfinishedToToday,
     addGoal,
     toggleGoal,
     renameGoal,
@@ -1016,12 +1067,14 @@ type ScreenProps = {
   weekHabitProgress: number;
   overdueTasks: DatedTask[];
   upcomingTasks: DatedTask[];
+  viewedWeekUnfinishedTasks: DatedTask[];
   addTaskForDay: (day: string, title: string, toastText?: string) => void;
   toggleTask: (day: string, id: string) => void;
   deleteTask: (day: string, id: string) => void;
   renameTask: (day: string, id: string, title: string) => void;
   updateTaskMeta: (day: string, id: string, patch: Partial<Pick<Task, "priority" | "repeat">>) => void;
   moveTask: (fromDay: string, id: string, toDay: string) => void;
+  moveViewedWeekUnfinishedToToday: () => void;
   addGoal: (title: string, weekStart?: string) => void;
   toggleGoal: (id: string, weekStart?: string) => void;
   renameGoal: (id: string, title: string, weekStart?: string) => void;
@@ -1191,6 +1244,7 @@ function WeekScreen(props: ScreenProps) {
   const selectedDayIndex = props.weekDays.indexOf(selectedDay);
   const selectedDayLabel = selectedDayIndex >= 0 ? dayNames[selectedDayIndex] : "День";
   const isCurrentWeek = props.viewWeekStart === props.currentWeekStart;
+  const isPastWeek = props.viewWeekStart < props.currentWeekStart;
   const weekRange = `${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(parseISO(props.weekDays[0]))} - ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(parseISO(props.weekDays[6]))}`;
 
   useEffect(() => {
@@ -1211,6 +1265,16 @@ function WeekScreen(props: ScreenProps) {
           <button type="button" className="weekNavigatorToday" onClick={props.showCurrentWeek}>Сегодня</button>
         )}
       </article>
+      {isPastWeek && props.viewedWeekUnfinishedTasks.length > 0 && (
+        <article className="card reviewCarryCard">
+          <div className="sectionTitle">
+            <h2>Незавершенное</h2>
+            <span>{props.viewedWeekUnfinishedTasks.length}</span>
+          </div>
+          <p className="cardHint">Перенесите открытые задачи из этой недели в сегодняшний список, если они все еще актуальны.</p>
+          <button type="button" className="secondaryButton" onClick={props.moveViewedWeekUnfinishedToToday}>Перенести в сегодня</button>
+        </article>
+      )}
       <article className="heroCard weekHero">
         <div>
           <p className="muted">Общий прогресс</p>

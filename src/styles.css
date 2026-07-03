@@ -628,6 +628,13 @@ textarea:focus {
   color: var(--app-accent-strong);
 }
 
+.reviewCarryCard button {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
 .cardHint {
   margin: -2px 0 12px;
   color: var(--app-muted);
