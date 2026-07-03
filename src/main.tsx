@@ -351,10 +351,10 @@ function loadLocalState(): PlannerState | null {
   return null;
 }
 
-async function loadStoredState(): Promise<PlannerState> {
+async function loadStoredState(): Promise<PlannerState | null> {
   const indexedState = await plannerStorage.loadLatestSnapshot();
   if (indexedState) return indexedState;
-  return loadLocalState() ?? createDemoState();
+  return loadLocalState();
 }
 
 export function ensureCurrentWeek(state: PlannerState, weekStart: string): PlannerState {
@@ -575,6 +575,7 @@ function App() {
   const weekStart = getWeekStart();
   const [state, setState] = useState<PlannerState>(() => createDemoState(weekStart));
   const [appReady, setAppReady] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [tab, setTab] = useState<Tab>("today");
   const [toast, setToast] = useState("");
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -591,7 +592,11 @@ function App() {
     plannerStorage.loadState()
       .then((storedState) => {
         if (cancelled) return;
-        setState(ensureCurrentWeek(storedState, weekStart));
+        if (storedState) {
+          setState(ensureCurrentWeek(storedState, weekStart));
+        } else {
+          setNeedsOnboarding(true);
+        }
         setAppReady(true);
       })
       .catch(() => {
@@ -609,12 +614,12 @@ function App() {
     refreshStorageStatus();
   }, []);
   useEffect(() => {
-    if (!appReady) return;
+    if (!appReady || needsOnboarding) return;
     plannerStorage
       .saveState(state)
       .then(refreshStorageStatus)
       .catch(() => setToast("Данные не сохранились. Сделайте экспорт JSON."));
-  }, [appReady, state]);
+  }, [appReady, needsOnboarding, state]);
   useEffect(() => {
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", getThemeColor(state.settings.theme));
   }, [state.settings.theme]);
@@ -920,6 +925,20 @@ function App() {
     importInputRef,
   };
 
+  const startWithDemo = () => {
+    setState(createDemoState(weekStart));
+    setNeedsOnboarding(false);
+    setTab("today");
+    setToast("Демо-планер готов");
+  };
+
+  const startEmpty = () => {
+    setState(createEmptyState(weekStart));
+    setNeedsOnboarding(false);
+    setTab("today");
+    setToast("Пустой планер готов");
+  };
+
   return (
     <div className="appShell" data-theme={state.settings.theme}>
       <main className="phoneFrame">
@@ -930,6 +949,8 @@ function App() {
               <EmptyState title="Проверяем локальное хранилище" text="Сначала ищем основной снимок в IndexedDB, затем запасную копию в браузере." />
             </article>
           </section>
+        ) : needsOnboarding ? (
+          <OnboardingScreen onDemo={startWithDemo} onEmpty={startEmpty} />
         ) : (
           <AnimatePresence mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
@@ -941,12 +962,12 @@ function App() {
           </AnimatePresence>
         )}
       </main>
-      {appReady && (
+      {appReady && !needsOnboarding && (
         <motion.button className="floatingAddButton" whileTap={{ scale: 0.94 }} onClick={() => setAddSheetOpen(true)} aria-label="Добавить задачу">
           +
         </motion.button>
       )}
-      {appReady && <BottomNav active={tab} onChange={setTab} />}
+      {appReady && !needsOnboarding && <BottomNav active={tab} onChange={setTab} />}
       <AnimatePresence>{toast && <motion.div className="toast">{toast}</motion.div>}</AnimatePresence>
       <AnimatePresence>
         {addSheetOpen && (
@@ -1032,6 +1053,40 @@ function Header({ eyebrow, title }: { eyebrow: string; title: string }) {
       <span>{eyebrow}</span>
       <h1>{title}</h1>
     </header>
+  );
+}
+
+function OnboardingScreen({ onDemo, onEmpty }: { onDemo: () => void; onEmpty: () => void }) {
+  return (
+    <section className="screen onboardingScreen">
+      <Header eyebrow="NotPlanGo" title="С чего начнем?" />
+      <article className="heroCard compactHero">
+        <div>
+          <p className="muted">Локальный планер</p>
+          <h2>Выберите старт под свой ритм</h2>
+          <p>Можно попробовать готовый пример или открыть чистую неделю и сразу занести свои дела.</p>
+        </div>
+      </article>
+      <div className="onboardingChoices">
+        <button type="button" onClick={onEmpty}>
+          <span>Пустой планер</span>
+          <strong>Начать с нуля</strong>
+          <em>Без демо-задач, привычек и целей.</em>
+        </button>
+        <button type="button" onClick={onDemo}>
+          <span>Демо-неделя</span>
+          <strong>Посмотреть пример</strong>
+          <em>Готовые задачи, цели и привычки для знакомства.</em>
+        </button>
+      </div>
+      <article className="card">
+        <div className="sectionTitle">
+          <h2>Данные остаются здесь</h2>
+          <span>JSON</span>
+        </div>
+        <p className="cardHint">NotPlanGo хранит планер в браузере на этом устройстве. Для переноса и резервной копии используйте экспорт JSON в настройках.</p>
+      </article>
+    </section>
   );
 }
 

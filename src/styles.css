@@ -328,6 +328,58 @@ button {
   padding: 16px;
 }
 
+.onboardingScreen {
+  justify-content: center;
+  min-height: calc(var(--visual-viewport-height) - 28px);
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+}
+
+.onboardingChoices {
+  display: grid;
+  gap: 10px;
+}
+
+.onboardingChoices button {
+  display: grid;
+  gap: 6px;
+  min-height: 132px;
+  padding: 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--app-surface-solid), var(--app-card-soft));
+  color: var(--app-text);
+  box-shadow: 0 14px 34px var(--app-shadow);
+  text-align: left;
+}
+
+.onboardingChoices button:first-child {
+  border-color: color-mix(in srgb, var(--app-accent) 28%, var(--app-border));
+  background: linear-gradient(180deg, var(--app-accent-soft), var(--app-surface-solid));
+}
+
+.onboardingChoices span {
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
+  padding: 5px 9px;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.onboardingChoices strong {
+  font-size: 1.12rem;
+  line-height: 1.1;
+}
+
+.onboardingChoices em {
+  color: var(--app-muted);
+  font-size: 0.86rem;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
 .sectionTitle {
   display: flex;
   align-items: center;
