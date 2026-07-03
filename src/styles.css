@@ -270,6 +270,60 @@ button {
     var(--app-surface-solid);
 }
 
+.weekNavigator {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface-solid);
+  box-shadow: 0 10px 28px var(--app-shadow);
+}
+
+.weekNavigator button {
+  min-height: 48px;
+  border-radius: 8px;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.weekNavigator div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  text-align: center;
+}
+
+.weekNavigator strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 0.98rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekNavigator span {
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekNavigator .weekNavigatorToday {
+  grid-column: 1 / -1;
+  min-height: 42px;
+  background: var(--app-accent);
+  color: #fff;
+  font-size: 0.86rem;
+}
+
 .card {
   padding: 16px;
 }
@@ -412,7 +466,7 @@ textarea:focus {
 }
 
 .taskItem.isDone span {
-  color: #8b887c;
+  color: var(--app-muted);
   text-decoration: line-through;
 }
 
@@ -439,7 +493,7 @@ textarea:focus {
 
 .taskItem.isDone .taskBody input,
 .goalItem.isDone input {
-  color: #8b887c;
+  color: var(--app-muted);
   text-decoration: line-through;
 }
 
@@ -453,31 +507,31 @@ textarea:focus {
   min-height: 30px;
   border-radius: 999px;
   padding: 0 10px;
-  background: #eee8db;
-  color: #625e51;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
   font-size: 0.74rem;
   font-weight: 900;
 }
 
 .metaChip.priority-high {
-  background: #efe3d6;
-  color: #8b4d3f;
+  background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface-solid));
+  color: var(--app-danger);
 }
 
 .metaChip.priority-normal {
-  background: #e9edd8;
-  color: #59633a;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
 }
 
 .metaChip.priority-low {
-  background: #f1ece2;
-  color: #7c7463;
+  background: var(--app-bg-soft);
+  color: var(--app-muted);
 }
 
 .metaChip.repeat-daily,
 .metaChip.repeat-weekly {
-  background: #e3ead2;
-  color: #566135;
+  background: var(--app-accent-bg);
+  color: var(--app-accent-strong);
 }
 
 .dayMoveRail {
@@ -486,45 +540,45 @@ textarea:focus {
   gap: 4px;
   padding: 4px;
   border-radius: 10px;
-  background: rgba(237, 231, 218, 0.72);
+  background: var(--app-card-soft);
 }
 
 .dayMoveRail button {
   min-height: 28px;
   border-radius: 7px;
   background: transparent;
-  color: #827b69;
+  color: var(--app-muted);
   font-size: 0.68rem;
   font-weight: 900;
 }
 
 .dayMoveRail button.active {
-  background: #ffffff;
-  color: #59633a;
-  box-shadow: 0 1px 8px rgba(82, 73, 52, 0.08);
+  background: var(--app-surface-solid);
+  color: var(--app-accent-strong);
+  box-shadow: 0 1px 8px var(--app-shadow);
 }
 
 .overdueCard {
-  border-color: #ead9bd;
+  border-color: color-mix(in srgb, var(--app-danger) 18%, var(--app-border));
 }
 
 .upcomingCard {
-  border-color: #dce7c5;
+  border-color: color-mix(in srgb, var(--app-accent) 22%, var(--app-border));
 }
 
 .upcomingCard .overdueItem {
-  background: #fbfcf4;
-  border-color: #e0e8c8;
+  background: var(--app-surface-solid);
+  border-color: var(--app-accent-soft);
 }
 
 .upcomingCard .overdueItem span {
-  background: #e8edd7;
-  color: #59633a;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
 }
 
 .cardHint {
   margin: -2px 0 12px;
-  color: #7d7668;
+  color: var(--app-muted);
   font-size: 0.86rem;
   line-height: 1.35;
 }
@@ -538,7 +592,7 @@ textarea:focus {
   min-height: 44px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: #f7f4ed;
+  background: var(--app-card-soft);
 }
 
 .overdueItem {
@@ -546,8 +600,8 @@ textarea:focus {
   gap: 10px;
   padding: 10px;
   border-radius: 10px;
-  background: #fff9ef;
-  border: 1px solid #efe2cd;
+  background: var(--app-surface-solid);
+  border: 1px solid var(--app-border);
 }
 
 .overdueItem div:first-child {
@@ -556,7 +610,7 @@ textarea:focus {
 }
 
 .overdueItem strong {
-  color: #3d3a32;
+  color: var(--app-text);
   line-height: 1.22;
   overflow-wrap: anywhere;
 }
@@ -564,8 +618,8 @@ textarea:focus {
 .overdueItem span {
   width: fit-content;
   border-radius: 999px;
-  background: #f0e6d4;
-  color: #7a6748;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
   padding: 4px 8px;
   font-size: 0.72rem;
   font-weight: 900;
@@ -585,15 +639,15 @@ textarea:focus {
   min-height: 36px;
   border-radius: 8px;
   padding: 0 10px;
-  background: #e8edd7;
-  color: #59633a;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
   font-weight: 800;
 }
 
 .overdueActions .plainDanger {
   padding: 0;
-  background: #f3e6df;
-  color: #8b4d3f;
+  background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface-solid));
+  color: var(--app-danger);
   font-size: 1.1rem;
 }
 
@@ -609,7 +663,7 @@ textarea:focus {
 }
 
 .checkButton {
-  background: #ffffff;
+  background: var(--app-surface-solid);
   color: var(--app-accent-strong);
   box-shadow: inset 0 0 0 2px var(--app-accent-bg);
   margin-top: 1px;
@@ -624,7 +678,7 @@ textarea:focus {
 .deleteButton,
 .settingsHabit button {
   background: transparent;
-  color: #a19886;
+  color: var(--app-muted);
   font-size: 1.25rem;
 }
 
@@ -660,7 +714,7 @@ textarea:focus {
 .themeSwatches i {
   width: 24px;
   height: 24px;
-  border: 1px solid rgba(47, 48, 43, 0.1);
+  border: 1px solid var(--app-border);
   border-radius: 999px;
 }
 
@@ -706,7 +760,7 @@ textarea:focus {
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--app-surface-solid);
   color: #ffffff;
 }
 
@@ -725,7 +779,7 @@ textarea:focus {
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  color: #625e51;
+  color: var(--app-muted);
 }
 
 .metricControl input {
@@ -733,7 +787,7 @@ textarea:focus {
 }
 
 .metricControl strong {
-  color: #3d412c;
+  color: var(--app-accent-strong);
   text-align: right;
 }
 
@@ -776,8 +830,8 @@ textarea {
   width: 30px;
   height: 30px;
   border-radius: 999px;
-  background: #ede7da;
-  color: #5c584b;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
   font-weight: 900;
 }
 
@@ -820,7 +874,7 @@ textarea {
 .dayCard p,
 .habitRowHead p {
   margin: 0;
-  color: #827b69;
+  color: var(--app-muted);
 }
 
 .dayCardTop strong {
@@ -839,13 +893,13 @@ textarea {
 
 .miniTasks span {
   overflow: hidden;
-  color: #5c584b;
+  color: var(--app-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .miniTasks .done {
-  color: #999384;
+  color: var(--app-muted);
   text-decoration: line-through;
 }
 
@@ -858,7 +912,7 @@ textarea {
 }
 
 .habitRowHead strong {
-  color: #6f7a4a;
+  color: var(--app-accent-strong);
 }
 
 .weekDots {
@@ -873,13 +927,13 @@ textarea {
   min-width: 0;
   min-height: 44px;
   border-radius: 8px;
-  background: #f4f0e7;
-  color: #827b69;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
   font-weight: 900;
 }
 
 .weekDots button.active {
-  background: #87915f;
+  background: var(--app-accent);
   color: #ffffff;
 }
 
@@ -903,9 +957,9 @@ textarea {
 .splitProgress span,
 .backupNote {
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.48);
+  background: color-mix(in srgb, var(--app-surface-solid) 72%, transparent);
   padding: 6px 10px;
-  color: #625e51;
+  color: var(--app-muted);
   font-size: 0.78rem;
   font-weight: 800;
 }
@@ -920,14 +974,14 @@ textarea {
 .segmented button {
   min-height: 44px;
   border-radius: 8px;
-  background: #f4f0e7;
-  color: #5f5b4c;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
   font-weight: 800;
 }
 
 .segmented button.active {
-  background: #e8edd7;
-  color: #59633a;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
 }
 
 .searchResults,
@@ -939,7 +993,7 @@ textarea {
 
 .searchResults strong,
 .historyList span {
-  color: #6f7a4a;
+  color: var(--app-accent-strong);
   font-size: 0.78rem;
 }
 
@@ -954,14 +1008,14 @@ textarea {
 .storageGrid div {
   min-height: 72px;
   border-radius: 8px;
-  background: #f7f4ed;
+  background: var(--app-card-soft);
   padding: 12px;
 }
 
 .statGrid span,
 .storageGrid span {
   display: block;
-  color: #827b69;
+  color: var(--app-muted);
   font-size: 0.78rem;
 }
 
@@ -969,7 +1023,7 @@ textarea {
 .storageGrid strong {
   display: block;
   margin-top: 6px;
-  color: #3d412c;
+  color: var(--app-accent-strong);
   font-size: 1.35rem;
 }
 
@@ -978,7 +1032,7 @@ textarea {
 }
 
 .storageCard {
-  border-color: #dfe7c9;
+  border-color: color-mix(in srgb, var(--app-accent) 22%, var(--app-border));
 }
 
 .storageActions {
@@ -1002,22 +1056,22 @@ textarea {
 }
 
 .actionsCard .secondaryButton {
-  background: #f4f0e7;
-  color: #5f5b4c;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
 }
 
 .actionsCard .dangerButton {
-  color: #8b4d3f;
+  color: var(--app-danger);
 }
 
 .dangerButton {
-  background: #f3e6df;
-  color: #8b4d3f;
+  background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface-solid));
+  color: var(--app-danger);
 }
 
 .secondaryButton {
-  background: #f4f0e7;
-  color: #5f5b4c;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
 }
 
 .hiddenFileInput {
@@ -1030,17 +1084,17 @@ textarea {
   z-index: 50;
   display: grid;
   align-items: end;
-  background: rgba(47, 48, 43, 0.28);
+  background: color-mix(in srgb, var(--app-text) 28%, transparent);
   padding: 18px;
 }
 
 .confirmSheet {
   width: min(100%, 430px);
   margin: 0 auto calc(76px + env(safe-area-inset-bottom));
-  border: 1px solid #e7ddcd;
+  border: 1px solid var(--app-border);
   border-radius: 12px;
-  background: #fffdfa;
-  box-shadow: 0 24px 70px rgba(71, 62, 42, 0.2);
+  background: var(--app-surface-solid);
+  box-shadow: 0 24px 70px color-mix(in srgb, var(--app-shadow) 70%, transparent);
   padding: 16px;
 }
 
@@ -1077,7 +1131,7 @@ textarea {
   display: grid;
   align-items: end;
   height: var(--visual-viewport-height, 100dvh);
-  background: rgba(47, 48, 43, 0.28);
+  background: color-mix(in srgb, var(--app-text) 28%, transparent);
   padding: 18px;
   overflow: hidden;
 }
@@ -1085,10 +1139,10 @@ textarea {
 .addTaskSheet {
   width: min(100%, 430px);
   margin: 0 auto calc(78px + env(safe-area-inset-bottom));
-  border: 1px solid #e4dccd;
+  border: 1px solid var(--app-border);
   border-radius: 16px;
-  background: #fffdfa;
-  box-shadow: 0 24px 70px rgba(71, 62, 42, 0.22);
+  background: var(--app-surface-solid);
+  box-shadow: 0 24px 70px color-mix(in srgb, var(--app-shadow) 80%, transparent);
   padding: 10px 14px 14px;
 }
 
@@ -1106,8 +1160,8 @@ textarea {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: #f4f0e7;
-  color: #8b4d3f;
+  background: var(--app-card-soft);
+  color: var(--app-danger);
   font-size: 1.2rem;
   font-weight: 900;
 }
@@ -1116,11 +1170,11 @@ textarea {
 .dateField input {
   width: 100%;
   min-height: 52px;
-  border: 1px solid #e5dfd2;
+  border: 1px solid var(--app-border);
   border-radius: 10px;
   outline: 0;
-  background: #fbfaf6;
-  color: #2f302b;
+  background: var(--app-surface-solid);
+  color: var(--app-text);
   padding: 0 14px;
 }
 
@@ -1131,8 +1185,8 @@ textarea {
 
 .sheetTaskInput:focus,
 .dateField input:focus {
-  border-color: #9aa472;
-  box-shadow: 0 0 0 4px rgba(135, 145, 95, 0.14);
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 16%, transparent);
 }
 
 .dateQuickPick {
@@ -1144,22 +1198,22 @@ textarea {
 .dateQuickPick button {
   min-height: 44px;
   border-radius: 10px;
-  background: #f4f0e7;
-  color: #625e51;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
   font-weight: 900;
 }
 
 .dateQuickPick button.active {
-  background: #e8edd7;
-  color: #59633a;
-  box-shadow: inset 0 0 0 1px rgba(135, 145, 95, 0.24);
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 24%, transparent);
 }
 
 .dateField {
   display: grid;
   gap: 6px;
   margin-top: 10px;
-  color: #7d7668;
+  color: var(--app-muted);
   font-size: 0.82rem;
   font-weight: 900;
 }
@@ -1172,17 +1226,17 @@ textarea {
   margin: 12px 0;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #f7f4ed;
+  background: var(--app-card-soft);
 }
 
 .selectedDateLine span {
-  color: #7d7668;
+  color: var(--app-muted);
   font-size: 0.82rem;
   font-weight: 800;
 }
 
 .selectedDateLine strong {
-  color: #3d412c;
+  color: var(--app-accent-strong);
   font-size: 0.9rem;
 }
 
@@ -1197,8 +1251,8 @@ textarea {
 
 .primarySheetButton:disabled {
   cursor: not-allowed;
-  background: #d9d2c4;
-  color: #8b887c;
+  background: var(--app-bg-soft);
+  color: var(--app-muted);
 }
 
 .emptyState {
@@ -1288,9 +1342,9 @@ textarea {
   margin: 0 auto;
   padding: 12px 14px;
   border-radius: 8px;
-  background: #2f302b;
-  color: #fffaf0;
-  box-shadow: 0 16px 40px rgba(47, 48, 43, 0.2);
+  background: var(--app-text);
+  color: var(--app-surface-solid);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--app-text) 20%, transparent);
   font-weight: 800;
   text-align: center;
 }

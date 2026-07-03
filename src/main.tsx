@@ -576,8 +576,10 @@ function App() {
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>({ usageLabel: "неизвестно", quotaLabel: "неизвестно", persisted: null, backupAt: "", backupAvailable: false });
   const importInputRef = useRef<HTMLInputElement>(null);
-  const weekDays = useMemo(() => getWeekDays(state.activeWeekStart), [state.activeWeekStart]);
-  const currentGoals = state.weeklyGoals[state.activeWeekStart] ?? [];
+  const [viewWeekStart, setViewWeekStart] = useState(weekStart);
+  const currentWeekDays = useMemo(() => getWeekDays(state.activeWeekStart), [state.activeWeekStart]);
+  const weekDays = useMemo(() => getWeekDays(viewWeekStart), [viewWeekStart]);
+  const currentGoals = state.weeklyGoals[viewWeekStart] ?? [];
 
   useEffect(() => {
     let cancelled = false;
@@ -608,6 +610,10 @@ function App() {
       .then(refreshStorageStatus)
       .catch(() => setToast("Данные не сохранились. Сделайте экспорт JSON."));
   }, [appReady, state]);
+  useEffect(() => {
+    const themeColor = themePresets.find((preset) => preset.id === state.settings.theme)?.swatches[1] ?? "#87915f";
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", themeColor);
+  }, [state.settings.theme]);
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(""), 2400);
@@ -647,8 +653,8 @@ function App() {
   const weekTaskProgress = percent(weekDoneCount, weekTaskCount);
   const weekHabitProgress = percent(habitDoneCount, state.habits.length * 7);
   const weekProgress = percent(weekDoneCount + habitDoneCount, weekTaskCount + state.habits.length * 7);
-  const todayIndex = weekDays.indexOf(today);
-  const overdueTasks = todayIndex <= 0 ? [] : weekDays
+  const todayIndex = currentWeekDays.indexOf(today);
+  const overdueTasks = todayIndex <= 0 ? [] : currentWeekDays
     .slice(0, todayIndex)
     .flatMap((day) => (state.tasks[day] ?? []).filter((task) => !task.done).map((task) => ({ day, task })));
   const upcomingTasks = getUpcomingTasks(state.tasks, weekDays);
@@ -718,49 +724,49 @@ function App() {
     setToast("Задача перенесена");
   };
 
-  const addGoal = (title: string) => {
+  const addGoal = (title: string, targetWeekStart = viewWeekStart) => {
     const clean = title.trim();
     if (!clean) return;
     updateState((current) => ({
       ...current,
       weeklyGoals: {
         ...current.weeklyGoals,
-        [current.activeWeekStart]: [...(current.weeklyGoals[current.activeWeekStart] ?? []), { id: uid(), title: clean, done: false }],
+        [targetWeekStart]: [...(current.weeklyGoals[targetWeekStart] ?? []), { id: uid(), title: clean, done: false }],
       },
     }));
   };
 
-  const toggleGoal = (id: string) => {
+  const toggleGoal = (id: string, targetWeekStart = viewWeekStart) => {
     updateState((current) => ({
       ...current,
       weeklyGoals: {
         ...current.weeklyGoals,
-        [current.activeWeekStart]: (current.weeklyGoals[current.activeWeekStart] ?? []).map((goal) =>
+        [targetWeekStart]: (current.weeklyGoals[targetWeekStart] ?? []).map((goal) =>
           goal.id === id ? { ...goal, done: !goal.done } : goal,
         ),
       },
     }));
   };
 
-  const renameGoal = (id: string, title: string) => {
+  const renameGoal = (id: string, title: string, targetWeekStart = viewWeekStart) => {
     updateState((current) => ({
       ...current,
       weeklyGoals: {
         ...current.weeklyGoals,
-        [current.activeWeekStart]: (current.weeklyGoals[current.activeWeekStart] ?? []).map((goal) =>
+        [targetWeekStart]: (current.weeklyGoals[targetWeekStart] ?? []).map((goal) =>
           goal.id === id ? { ...goal, title } : goal,
         ),
       },
     }));
   };
 
-  const deleteGoal = (id: string) => {
+  const deleteGoal = (id: string, targetWeekStart = viewWeekStart) => {
     askConfirm("Удалить цель?", "Цель исчезнет из текущей недели, остальные данные останутся.", "Удалить", () =>
       updateState((current) => ({
         ...current,
         weeklyGoals: {
           ...current.weeklyGoals,
-          [current.activeWeekStart]: (current.weeklyGoals[current.activeWeekStart] ?? []).filter((goal) => goal.id !== id),
+          [targetWeekStart]: (current.weeklyGoals[targetWeekStart] ?? []).filter((goal) => goal.id !== id),
         },
       })),
     );
@@ -857,6 +863,8 @@ function App() {
   const screenProps: ScreenProps = {
     state,
     today,
+    viewWeekStart,
+    currentWeekStart: state.activeWeekStart,
     weekDays,
     currentGoals,
     todayTasks,
@@ -877,6 +885,9 @@ function App() {
     toggleGoal,
     renameGoal,
     deleteGoal,
+    showPreviousWeek: () => setViewWeekStart((current) => addDays(current, -7)),
+    showNextWeek: () => setViewWeekStart((current) => addDays(current, 7)),
+    showCurrentWeek: () => setViewWeekStart(state.activeWeekStart),
     toggleHabit,
     setLog,
     addHabit,
@@ -968,6 +979,8 @@ function App() {
 type ScreenProps = {
   state: PlannerState;
   today: string;
+  viewWeekStart: string;
+  currentWeekStart: string;
   weekDays: string[];
   currentGoals: WeekGoal[];
   todayTasks: Task[];
@@ -984,10 +997,13 @@ type ScreenProps = {
   renameTask: (day: string, id: string, title: string) => void;
   updateTaskMeta: (day: string, id: string, patch: Partial<Pick<Task, "priority" | "repeat">>) => void;
   moveTask: (fromDay: string, id: string, toDay: string) => void;
-  addGoal: (title: string) => void;
-  toggleGoal: (id: string) => void;
-  renameGoal: (id: string, title: string) => void;
-  deleteGoal: (id: string) => void;
+  addGoal: (title: string, weekStart?: string) => void;
+  toggleGoal: (id: string, weekStart?: string) => void;
+  renameGoal: (id: string, title: string, weekStart?: string) => void;
+  deleteGoal: (id: string, weekStart?: string) => void;
+  showPreviousWeek: () => void;
+  showNextWeek: () => void;
+  showCurrentWeek: () => void;
   toggleHabit: (habitId: string, day: string) => void;
   setLog: (patch: Partial<DayLog>) => void;
   addHabit: (title: string) => void;
@@ -1115,10 +1131,27 @@ function WeekScreen(props: ScreenProps) {
   const selectedDayTasks = props.state.tasks[selectedDay] ?? [];
   const selectedDayIndex = props.weekDays.indexOf(selectedDay);
   const selectedDayLabel = selectedDayIndex >= 0 ? dayNames[selectedDayIndex] : "День";
+  const isCurrentWeek = props.viewWeekStart === props.currentWeekStart;
+  const weekRange = `${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(parseISO(props.weekDays[0]))} - ${new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(parseISO(props.weekDays[6]))}`;
+
+  useEffect(() => {
+    setSelectedDay(props.weekDays.includes(props.today) ? props.today : props.weekDays[0]);
+  }, [props.today, props.viewWeekStart, props.weekDays]);
 
   return (
     <section className="screen">
       <Header eyebrow="обзор" title="Неделя" />
+      <article className="weekNavigator" aria-label="Навигация по неделям">
+        <button type="button" onClick={props.showPreviousWeek} aria-label="Предыдущая неделя">‹</button>
+        <div>
+          <strong>{weekRange}</strong>
+          <span>{isCurrentWeek ? "текущая неделя" : props.viewWeekStart}</span>
+        </div>
+        <button type="button" onClick={props.showNextWeek} aria-label="Следующая неделя">›</button>
+        {!isCurrentWeek && (
+          <button type="button" className="weekNavigatorToday" onClick={props.showCurrentWeek}>Сегодня</button>
+        )}
+      </article>
       <article className="heroCard weekHero">
         <div>
           <p className="muted">Общий прогресс</p>
@@ -1140,7 +1173,7 @@ function WeekScreen(props: ScreenProps) {
           className="addForm"
           onSubmit={(event) => {
             event.preventDefault();
-            props.addGoal(goalTitle);
+            props.addGoal(goalTitle, props.viewWeekStart);
             setGoalTitle("");
           }}
         >
@@ -1153,9 +1186,9 @@ function WeekScreen(props: ScreenProps) {
           ) : (
             props.currentGoals.map((goal, index) => (
               <div className={`goalItem ${goal.done ? "isDone" : ""}`} key={goal.id}>
-                <button onClick={() => props.toggleGoal(goal.id)} aria-label={`Отметить цель ${goal.title}`}>{goal.done ? "✓" : index + 1}</button>
-                <input value={goal.title} onChange={(event) => props.renameGoal(goal.id, event.target.value)} aria-label="Название цели недели" />
-                <button className="deleteButton" onClick={() => props.deleteGoal(goal.id)} aria-label={`Удалить ${goal.title}`}>×</button>
+                <button onClick={() => props.toggleGoal(goal.id, props.viewWeekStart)} aria-label={`Отметить цель ${goal.title}`}>{goal.done ? "✓" : index + 1}</button>
+                <input value={goal.title} onChange={(event) => props.renameGoal(goal.id, event.target.value, props.viewWeekStart)} aria-label="Название цели недели" />
+                <button className="deleteButton" onClick={() => props.deleteGoal(goal.id, props.viewWeekStart)} aria-label={`Удалить ${goal.title}`}>×</button>
               </div>
             ))
           )}
