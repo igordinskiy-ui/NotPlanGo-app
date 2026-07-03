@@ -5,7 +5,7 @@ import type { Root } from "react-dom/client";
 import { AnimatePresence, motion } from "motion/react";
 import "./styles.css";
 
-type Tab = "today" | "week" | "habits" | "settings";
+export type Tab = "today" | "week" | "habits" | "settings";
 type TaskPriority = "low" | "normal" | "high";
 type TaskRepeat = "none" | "daily" | "weekly";
 export type Task = { id: string; title: string; done: boolean; priority: TaskPriority; repeat: TaskRepeat; createdAt: string; updatedAt: string };
@@ -13,12 +13,40 @@ type WeekGoal = { id: string; title: string; done: boolean };
 type Habit = { id: string; title: string; completions: Record<string, boolean> };
 type DayLog = { sleep: number; energy: number; mood: number; summary: string };
 type PlannerTheme = "olive" | "sage" | "mint" | "clay" | "terracotta" | "lavender" | "sky" | "graphite";
-type PlannerSettings = { startMode: "demo" | "empty"; weeklyExportReminder: boolean; theme: PlannerTheme; lastExportAt: string };
+type ReminderWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type PlannerNotificationPermission = NotificationPermission | "unsupported";
+export type PlannerSettings = {
+  startMode: "demo" | "empty";
+  weeklyExportReminder: boolean;
+  theme: PlannerTheme;
+  lastExportAt: string;
+  remindersEnabled: boolean;
+  reminderDays: ReminderWeekday[];
+  reminderTime: string;
+  reminderLastDate: string;
+  reviewReminderEnabled: boolean;
+  reviewReminderTime: string;
+  reviewReminderLastDate: string;
+};
 type PlannerBackup = { id: string; createdAt: string; label: string; data: string };
 type StorageStatus = { usageLabel: string; quotaLabel: string; persisted: boolean | null; backupAt: string; backupAvailable: boolean };
+export type PwaRuntimeStatus = {
+  secureContext: boolean;
+  standalone: boolean;
+  serviceWorkerSupported: boolean;
+  serviceWorkerControlled: boolean;
+  online: boolean;
+};
 type DatedTask = { day: string; task: Task };
 type SearchResult = { id: string; kind: "task" | "goal" | "summary" | "habit"; title: string; meta: string };
 type ConfirmAction = { title: string; text: string; confirmLabel: string; onConfirm: () => void; secondaryLabel?: string; onSecondary?: () => void };
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
+type PlannerDeepLink = { tab: Tab; focus: "summary" | ""; action: "snooze-reminders" | "" };
+type PlannerNotificationAction = { action: string; title: string };
+type ServiceWorkerNotificationOptions = NotificationOptions & { actions?: PlannerNotificationAction[] };
 
 export type PlannerState = {
   version: 3;
@@ -61,6 +89,7 @@ const LEGACY_STORAGE_KEYS = ["notplango-state-v2", "notplango-state-v1"];
 const AUTO_BACKUP_KEY = "notplango-auto-backup-v1";
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 const dayNames = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const reminderWeekdays: ReminderWeekday[] = [1, 2, 3, 4, 5, 6, 7];
 const fullDayNames = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
 const moods = ["туманно", "ровно", "собранно", "легко", "сильно"];
 const priorityOptions: { value: TaskPriority; label: string }[] = [
@@ -96,11 +125,163 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const nextPriority = (priority: TaskPriority) => priorityOptions[(priorityOptions.findIndex((option) => option.value === priority) + 1) % priorityOptions.length].value;
 const nextRepeat = (repeat: TaskRepeat) => repeatOptions[(repeatOptions.findIndex((option) => option.value === repeat) + 1) % repeatOptions.length].value;
 export const getThemeColor = (theme: PlannerTheme) => themePresets.find((preset) => preset.id === theme)?.swatches[1] ?? "#87915f";
+export const isReminderTime = (value: unknown): value is string => typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 export const addDays = (iso: string, amount: number) => {
   const date = parseISO(iso);
   date.setDate(date.getDate() + amount);
   return toISO(date);
 };
+export function getIsoWeekday(date: Date): ReminderWeekday {
+  return (date.getDay() || 7) as ReminderWeekday;
+}
+export function normalizeReminderDays(value: unknown): ReminderWeekday[] {
+  if (!Array.isArray(value)) return [...reminderWeekdays];
+  const days = [...new Set(value.map(Number).filter((day): day is ReminderWeekday => reminderWeekdays.includes(day as ReminderWeekday)))].sort((left, right) => left - right);
+  return days.length ? days : [...reminderWeekdays];
+}
+export function toggleReminderDay(days: ReminderWeekday[], day: ReminderWeekday) {
+  const normalized = normalizeReminderDays(days);
+  if (normalized.includes(day)) return normalized.length === 1 ? normalized : normalized.filter((item) => item !== day);
+  return [...normalized, day].sort((left, right) => left - right);
+}
+export function shouldSendDailyReminder(now: Date, reminderTime: string, lastDate: string, activeDays: ReminderWeekday[] = reminderWeekdays) {
+  if (!isReminderTime(reminderTime)) return false;
+  if (!normalizeReminderDays(activeDays).includes(getIsoWeekday(now))) return false;
+  const today = toISO(now);
+  if (lastDate === today) return false;
+  const [hours, minutes] = reminderTime.split(":").map(Number);
+  const target = new Date(now);
+  target.setHours(hours, minutes, 0, 0);
+  return now >= target;
+}
+
+export function getNextReminderDelayMs(now: Date, reminderTime: string, lastDate: string, activeDays: ReminderWeekday[] = reminderWeekdays) {
+  if (!isReminderTime(reminderTime)) return 0;
+  if (shouldSendDailyReminder(now, reminderTime, lastDate, activeDays)) return 0;
+  const normalizedDays = normalizeReminderDays(activeDays);
+  const [hours, minutes] = reminderTime.split(":").map(Number);
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const target = new Date(now);
+    target.setDate(now.getDate() + offset);
+    target.setHours(hours, minutes, 0, 0);
+    if (!normalizedDays.includes(getIsoWeekday(target))) continue;
+    if (target <= now || lastDate === toISO(target)) continue;
+    return Math.max(0, target.getTime() - now.getTime());
+  }
+  return 0;
+}
+export function getReminderLastDateAfterEnable(now: Date, reminderTime: string, activeDays: ReminderWeekday[] = reminderWeekdays) {
+  return shouldSendDailyReminder(now, reminderTime, "", activeDays) ? toISO(now) : "";
+}
+export function formatRuCount(count: number, forms: [string, string, string]) {
+  const absCount = Math.abs(count);
+  const lastTwo = absCount % 100;
+  const lastOne = absCount % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) return `${count} ${forms[2]}`;
+  if (lastOne === 1) return `${count} ${forms[0]}`;
+  if (lastOne >= 2 && lastOne <= 4) return `${count} ${forms[1]}`;
+  return `${count} ${forms[2]}`;
+}
+export function buildDailyReminderBody(state: PlannerState, day: string) {
+  const openTasks = (state.tasks[day] ?? []).filter((task) => !task.done).length;
+  const openHabits = state.habits.filter((habit) => !habit.completions[day]).length;
+  if (openTasks === 0 && openHabits === 0) return "Все на сегодня закрыто. Можно оставить короткий итог дня.";
+  const parts = [];
+  if (openTasks > 0) parts.push(formatRuCount(openTasks, ["задача", "задачи", "задач"]));
+  if (openHabits > 0) parts.push(formatRuCount(openHabits, ["привычка", "привычки", "привычек"]));
+  return `На сегодня осталось: ${parts.join(" и ")}.`;
+}
+export function buildReviewReminderBody(state: PlannerState, day: string) {
+  const log = state.dayLogs[day] ?? defaultLog();
+  const doneTasks = (state.tasks[day] ?? []).filter((task) => task.done).length;
+  if (log.summary.trim()) return "Итог дня уже есть. Можно быстро проверить задачи и закрыть вечер.";
+  if (doneTasks > 0) return `Закройте день: отметьте настроение и запишите итог после ${formatRuCount(doneTasks, ["закрытой задачи", "закрытых задач", "закрытых задач"])}.`;
+  return "Закройте день: сон, энергия, настроение и короткий итог займут меньше минуты.";
+}
+export function shouldSkipReminderForDay(state: PlannerState, day: string, kind: "plan" | "review") {
+  if (kind === "review") return Boolean((state.dayLogs[day] ?? defaultLog()).summary.trim());
+  const tasks = state.tasks[day] ?? [];
+  const hasPlannedItems = tasks.length > 0 || state.habits.length > 0;
+  if (!hasPlannedItems) return false;
+  const hasOpenTasks = tasks.some((task) => !task.done);
+  const hasOpenHabits = state.habits.some((habit) => !habit.completions[day]);
+  return !hasOpenTasks && !hasOpenHabits;
+}
+export function getNotificationPermissionCopy(permission: PlannerNotificationPermission, enabled: boolean) {
+  if (permission === "unsupported") return { label: "недоступны", hint: "Этот браузер не поддерживает уведомления." };
+  if (permission === "denied") return { label: "запрещены", hint: "Разрешите уведомления в настройках браузера или телефона." };
+  if (permission === "granted") return { label: enabled ? "разрешены" : "разрешены", hint: enabled ? "Напоминания включены и работают локально на этом устройстве." : "Разрешение есть. Включите нужные напоминания ниже." };
+  return { label: "нужно разрешение", hint: "При первом включении браузер попросит разрешить уведомления." };
+}
+export function getNextReminderSummary(settings: PlannerSettings, now = new Date()) {
+  const reminders = [
+    { title: "План дня", enabled: settings.remindersEnabled, time: settings.reminderTime, lastDate: settings.reminderLastDate },
+    { title: "Итог дня", enabled: settings.reviewReminderEnabled, time: settings.reviewReminderTime, lastDate: settings.reviewReminderLastDate },
+  ]
+    .filter((reminder) => reminder.enabled && isReminderTime(reminder.time))
+    .map((reminder) => ({
+      ...reminder,
+      at: new Date(now.getTime() + getNextReminderDelayMs(now, reminder.time, reminder.lastDate, settings.reminderDays)),
+    }))
+    .sort((left, right) => left.at.getTime() - right.at.getTime());
+  const next = reminders[0];
+  if (!next) return "Не запланировано";
+  const day = toISO(next.at);
+  const today = toISO(now);
+  const dayLabel = day === today ? "сегодня" : day === addDays(today, 1) ? "завтра" : next.at.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+  return `${next.title}: ${dayLabel} в ${next.time}`;
+}
+export function snoozeRemindersForDate(settings: PlannerSettings, day: string) {
+  return {
+    ...settings,
+    reminderLastDate: settings.remindersEnabled ? day : settings.reminderLastDate,
+    reviewReminderLastDate: settings.reviewReminderEnabled ? day : settings.reviewReminderLastDate,
+  };
+}
+export function parsePlannerDeepLink(search: string): PlannerDeepLink {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const tab = params.get("tab");
+  const focus = params.get("focus");
+  const action = params.get("action");
+  return {
+    tab: tab === "week" || tab === "habits" || tab === "settings" ? tab : "today",
+    focus: focus === "summary" ? "summary" : "",
+    action: action === "snooze-reminders" ? "snooze-reminders" : "",
+  };
+}
+export function getPwaReadinessItems(status: PwaRuntimeStatus) {
+  return [
+    {
+      label: "Контекст",
+      value: status.secureContext ? "готов" : "нужен HTTPS",
+      ok: status.secureContext,
+      hint: status.secureContext ? "PWA-функции доступны в защищенном контексте." : "Для установки на телефон нужен HTTPS-домен.",
+    },
+    {
+      label: "Установка",
+      value: status.standalone ? "открыто как PWA" : "в браузере",
+      ok: status.standalone,
+      hint: status.standalone ? "Приложение запущено с домашнего экрана." : "После деплоя установите NotPlanGo на экран телефона.",
+    },
+    {
+      label: "Offline",
+      value: status.serviceWorkerControlled ? "кэш активен" : status.serviceWorkerSupported ? "после перезапуска" : "недоступен",
+      ok: status.serviceWorkerControlled,
+      hint: status.serviceWorkerControlled ? "Service worker уже управляет страницей." : status.serviceWorkerSupported ? "Откройте приложение повторно после первого визита." : "Этот браузер не поддерживает service worker.",
+    },
+    {
+      label: "Сеть",
+      value: status.online ? "online" : "offline",
+      ok: true,
+      hint: status.online ? "Можно синхронизировать деплой и загрузить обновления." : "Локальные данные доступны без сети после первого визита.",
+    },
+  ];
+}
+export function getPwaInstallActionCopy(status: PwaRuntimeStatus, promptAvailable: boolean) {
+  if (status.standalone) return { label: "Уже установлено", hint: "NotPlanGo открыт как приложение с домашнего экрана.", enabled: false };
+  if (promptAvailable) return { label: "Установить PWA", hint: "Браузер готов показать системное окно установки.", enabled: true };
+  return { label: "Установить через браузер", hint: "Android: меню браузера -> Установить приложение. iPhone: Поделиться -> На экран Домой.", enabled: false };
+}
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -132,7 +313,19 @@ function defaultLog(): DayLog {
 }
 
 function defaultSettings(): PlannerSettings {
-  return { startMode: "demo", weeklyExportReminder: true, theme: "olive", lastExportAt: "" };
+  return {
+    startMode: "demo",
+    weeklyExportReminder: true,
+    theme: "olive",
+    lastExportAt: "",
+    remindersEnabled: false,
+    reminderDays: [...reminderWeekdays],
+    reminderTime: "09:00",
+    reminderLastDate: "",
+    reviewReminderEnabled: false,
+    reviewReminderTime: "21:30",
+    reviewReminderLastDate: "",
+  };
 }
 
 export function createTask(title: string, done = false, patch: Partial<Task> = {}): Task {
@@ -266,11 +459,23 @@ function normalizeSettings(settings: unknown): PlannerSettings {
   const startMode = settings.startMode === "empty" || settings.startMode === "demo" ? settings.startMode : defaults.startMode;
   const theme = themePresets.some((preset) => preset.id === settings.theme) ? settings.theme as PlannerTheme : defaults.theme;
   const lastExportAt = typeof settings.lastExportAt === "string" ? settings.lastExportAt : defaults.lastExportAt;
+  const reminderDays = normalizeReminderDays(settings.reminderDays);
+  const reminderTime = isReminderTime(settings.reminderTime) ? settings.reminderTime : defaults.reminderTime;
+  const reminderLastDate = typeof settings.reminderLastDate === "string" ? settings.reminderLastDate : defaults.reminderLastDate;
+  const reviewReminderTime = isReminderTime(settings.reviewReminderTime) ? settings.reviewReminderTime : defaults.reviewReminderTime;
+  const reviewReminderLastDate = typeof settings.reviewReminderLastDate === "string" ? settings.reviewReminderLastDate : defaults.reviewReminderLastDate;
   return {
     startMode,
     weeklyExportReminder: Boolean(settings.weeklyExportReminder ?? defaults.weeklyExportReminder),
     theme,
     lastExportAt,
+    remindersEnabled: Boolean(settings.remindersEnabled ?? defaults.remindersEnabled),
+    reminderDays,
+    reminderTime,
+    reminderLastDate,
+    reviewReminderEnabled: Boolean(settings.reviewReminderEnabled ?? defaults.reviewReminderEnabled),
+    reviewReminderTime,
+    reviewReminderLastDate,
   };
 }
 
@@ -612,6 +817,53 @@ async function getStorageStatus(): Promise<StorageStatus> {
   return plannerStorage.getStatus();
 }
 
+function getBrowserNotificationPermission(): PlannerNotificationPermission {
+  if (!("Notification" in window)) return "unsupported";
+  return Notification.permission;
+}
+
+function getPwaRuntimeStatus(): PwaRuntimeStatus {
+  const iosStandalone = "standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+  const displayStandalone = window.matchMedia?.("(display-mode: standalone)").matches ?? false;
+  return {
+    secureContext: window.isSecureContext || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1",
+    standalone: iosStandalone || displayStandalone,
+    serviceWorkerSupported: "serviceWorker" in navigator,
+    serviceWorkerControlled: Boolean(navigator.serviceWorker?.controller),
+    online: navigator.onLine,
+  };
+}
+
+async function showPlannerNotification(title: string, body: string, tag = "notplango-daily-reminder", url = "/", actions: PlannerNotificationAction[] = []) {
+  if (!("Notification" in window)) return "unsupported" as const;
+  const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+  if (permission !== "granted") return "denied" as const;
+
+  if ("serviceWorker" in navigator) {
+    const registration = await navigator.serviceWorker.ready.catch(() => null);
+    if (registration?.showNotification) {
+      const options: ServiceWorkerNotificationOptions = {
+        body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag,
+        data: { url },
+        actions,
+      };
+      await registration.showNotification(title, options);
+      return "sent" as const;
+    }
+  }
+
+  new Notification(title, { body, icon: "/icon-192.png", tag, data: { url } });
+  return "sent" as const;
+}
+
+const reminderNotificationActions: PlannerNotificationAction[] = [
+  { action: "open", title: "Открыть" },
+  { action: "snooze", title: "Не сегодня" },
+];
+
 function ProgressRing({ value, size = 112 }: { value: number; size?: number }) {
   const stroke = 12;
   const radius = (size - stroke) / 2;
@@ -683,7 +935,13 @@ function App() {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>({ usageLabel: "неизвестно", quotaLabel: "неизвестно", persisted: null, backupAt: "", backupAvailable: false });
+  const [notificationPermission, setNotificationPermission] = useState<PlannerNotificationPermission>("unsupported");
+  const [pwaStatus, setPwaStatus] = useState<PwaRuntimeStatus>(() => getPwaRuntimeStatus());
   const importInputRef = useRef<HTMLInputElement>(null);
+  const installPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
+  const [installPromptAvailable, setInstallPromptAvailable] = useState(false);
+  const deepLinkHandledRef = useRef(false);
+  const [deepLinkFocus, setDeepLinkFocus] = useState<PlannerDeepLink["focus"]>("");
   const [viewWeekStart, setViewWeekStart] = useState(weekStart);
   const currentWeekDays = useMemo(() => getWeekDays(state.activeWeekStart), [state.activeWeekStart]);
   const weekDays = useMemo(() => getWeekDays(viewWeekStart), [viewWeekStart]);
@@ -730,6 +988,155 @@ function App() {
     const id = window.setTimeout(() => setToast(""), 2400);
     return () => window.clearTimeout(id);
   }, [toast]);
+  useEffect(() => {
+    setNotificationPermission(getBrowserNotificationPermission());
+  }, []);
+  useEffect(() => {
+    if (!appReady || needsOnboarding || deepLinkHandledRef.current) return;
+    const deepLink = parsePlannerDeepLink(window.location.search);
+    deepLinkHandledRef.current = true;
+    setTab(deepLink.tab);
+    setDeepLinkFocus(deepLink.focus);
+    if (deepLink.action === "snooze-reminders") {
+      if (state.settings.remindersEnabled || state.settings.reviewReminderEnabled) {
+        updateState((current) => ({ ...current, settings: snoozeRemindersForDate(current.settings, today) }));
+        setToast("Напоминание отложено до завтра");
+      } else {
+        setToast("Напоминания уже выключены");
+      }
+    }
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+  }, [appReady, needsOnboarding, state.settings.remindersEnabled, state.settings.reviewReminderEnabled, today]);
+  useEffect(() => {
+    if (tab !== "today" || deepLinkFocus !== "summary") return;
+    const id = window.setTimeout(() => {
+      document.getElementById("summary")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById("summary")?.focus();
+      setDeepLinkFocus("");
+    }, 260);
+    return () => window.clearTimeout(id);
+  }, [tab, deepLinkFocus]);
+  useEffect(() => {
+    const refreshPwaStatus = () => setPwaStatus(getPwaRuntimeStatus());
+    refreshPwaStatus();
+    window.addEventListener("online", refreshPwaStatus);
+    window.addEventListener("offline", refreshPwaStatus);
+    navigator.serviceWorker?.addEventListener("controllerchange", refreshPwaStatus);
+    return () => {
+      window.removeEventListener("online", refreshPwaStatus);
+      window.removeEventListener("offline", refreshPwaStatus);
+      navigator.serviceWorker?.removeEventListener("controllerchange", refreshPwaStatus);
+    };
+  }, []);
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      installPromptRef.current = event as BeforeInstallPromptEvent;
+      setInstallPromptAvailable(true);
+    };
+    const handleAppInstalled = () => {
+      installPromptRef.current = null;
+      setInstallPromptAvailable(false);
+      setPwaStatus(getPwaRuntimeStatus());
+      setToast("NotPlanGo установлен как PWA");
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+  useEffect(() => {
+    if (!appReady || needsOnboarding) return;
+    const reminderConfigs = [
+      {
+        enabled: state.settings.remindersEnabled,
+        time: state.settings.reminderTime,
+        lastDate: state.settings.reminderLastDate,
+        days: state.settings.reminderDays,
+        body: () => buildDailyReminderBody(state, today),
+        shouldSkip: () => shouldSkipReminderForDay(state, today, "plan"),
+        tag: "notplango-plan-reminder",
+        url: "/?tab=today",
+        markSent: () => updateState((current) => ({ ...current, settings: { ...current.settings, reminderLastDate: toISO(new Date()) } })),
+      },
+      {
+        enabled: state.settings.reviewReminderEnabled,
+        time: state.settings.reviewReminderTime,
+        lastDate: state.settings.reviewReminderLastDate,
+        days: state.settings.reminderDays,
+        body: () => buildReviewReminderBody(state, today),
+        shouldSkip: () => shouldSkipReminderForDay(state, today, "review"),
+        tag: "notplango-review-reminder",
+        url: "/?tab=today&focus=summary",
+        markSent: () => updateState((current) => ({ ...current, settings: { ...current.settings, reviewReminderLastDate: toISO(new Date()) } })),
+      },
+    ].filter((config) => config.enabled);
+    if (reminderConfigs.length === 0) return;
+    let cancelled = false;
+    let timeoutId = 0;
+
+    const sendReminder = async () => {
+      for (const config of reminderConfigs) {
+        if (cancelled || !shouldSendDailyReminder(new Date(), config.time, config.lastDate, config.days)) continue;
+        if (config.shouldSkip()) {
+          config.markSent();
+          continue;
+        }
+        const result = await showPlannerNotification("NotPlanGo", config.body(), config.tag, config.url, reminderNotificationActions);
+        if (cancelled) return;
+        if (result === "sent") {
+          config.markSent();
+        } else if (result === "denied") {
+          updateState((current) => ({
+            ...current,
+            settings: { ...current.settings, remindersEnabled: false, reviewReminderEnabled: false },
+          }));
+          setToast("Уведомления запрещены в браузере");
+          return;
+        } else {
+          setToast("Уведомления не поддерживаются");
+          return;
+        }
+      }
+    };
+
+    const schedule = () => {
+      window.clearTimeout(timeoutId);
+      const nextDelay = Math.min(...reminderConfigs.map((config) => getNextReminderDelayMs(new Date(), config.time, config.lastDate, config.days)));
+      timeoutId = window.setTimeout(sendReminder, Math.min(nextDelay, 2_147_483_647));
+    };
+
+    const checkVisible = () => {
+      if (document.visibilityState === "visible") {
+        void sendReminder();
+        schedule();
+      }
+    };
+
+    schedule();
+    document.addEventListener("visibilitychange", checkVisible);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", checkVisible);
+    };
+  }, [
+    appReady,
+    needsOnboarding,
+    state.tasks,
+    state.habits,
+    state.dayLogs,
+    state.settings.remindersEnabled,
+    state.settings.reminderDays,
+    state.settings.reminderTime,
+    state.settings.reminderLastDate,
+    state.settings.reviewReminderEnabled,
+    state.settings.reviewReminderTime,
+    state.settings.reviewReminderLastDate,
+    today,
+  ]);
   useEffect(() => {
     if (import.meta.env.DEV && "serviceWorker" in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
@@ -988,6 +1395,96 @@ function App() {
     refreshStorageStatus();
   };
 
+  const enableReminder = async (kind: "plan" | "review") => {
+    const isReview = kind === "review";
+    const result = await showPlannerNotification(
+      "NotPlanGo",
+      isReview ? "Вечерний ритуал включен. Напомним закрыть день." : "Уведомления включены. Напомним открыть планер.",
+      isReview ? "notplango-review-reminder" : "notplango-plan-reminder",
+      isReview ? "/?tab=today&focus=summary" : "/?tab=today",
+      reminderNotificationActions,
+    );
+    setNotificationPermission(getBrowserNotificationPermission());
+    if (result === "sent") {
+      updateState((current) => ({
+        ...current,
+        settings: isReview
+          ? {
+              ...current.settings,
+              reviewReminderEnabled: true,
+              reviewReminderLastDate: getReminderLastDateAfterEnable(new Date(), current.settings.reviewReminderTime, current.settings.reminderDays),
+            }
+          : {
+              ...current.settings,
+              remindersEnabled: true,
+              reminderLastDate: getReminderLastDateAfterEnable(new Date(), current.settings.reminderTime, current.settings.reminderDays),
+            },
+      }));
+      setToast(isReview ? "Вечерний ритуал включен" : "Уведомления включены");
+    } else if (result === "denied") {
+      updateState((current) => ({ ...current, settings: { ...current.settings, remindersEnabled: false, reviewReminderEnabled: false } }));
+      setToast("Уведомления запрещены в браузере");
+    } else {
+      setToast("Уведомления не поддерживаются");
+    }
+  };
+
+  const setReminderEnabled = (enabled: boolean) => {
+    if (enabled) {
+      void enableReminder("plan");
+      return;
+    }
+    updateState((current) => ({ ...current, settings: { ...current.settings, remindersEnabled: false } }));
+    setToast("Уведомления выключены");
+  };
+
+  const setReviewReminderEnabled = (enabled: boolean) => {
+    if (enabled) {
+      void enableReminder("review");
+      return;
+    }
+    updateState((current) => ({ ...current, settings: { ...current.settings, reviewReminderEnabled: false } }));
+    setToast("Вечерний ритуал выключен");
+  };
+
+  const setReminderTime = (reminderTime: string) => {
+    updateState((current) => ({ ...current, settings: { ...current.settings, reminderTime: isReminderTime(reminderTime) ? reminderTime : current.settings.reminderTime } }));
+  };
+
+  const setReviewReminderTime = (reviewReminderTime: string) => {
+    updateState((current) => ({ ...current, settings: { ...current.settings, reviewReminderTime: isReminderTime(reviewReminderTime) ? reviewReminderTime : current.settings.reviewReminderTime } }));
+  };
+
+  const toggleReminderWeekday = (day: ReminderWeekday) => {
+    updateState((current) => ({ ...current, settings: { ...current.settings, reminderDays: toggleReminderDay(current.settings.reminderDays, day) } }));
+  };
+
+  const applyReminderSnooze = (source: "manual" | "notification") => {
+    if (!state.settings.remindersEnabled && !state.settings.reviewReminderEnabled) {
+      setToast("Напоминания уже выключены");
+      return;
+    }
+    updateState((current) => ({ ...current, settings: snoozeRemindersForDate(current.settings, today) }));
+    setToast(source === "notification" ? "Напоминание отложено до завтра" : "Напоминания отложены до завтра");
+  };
+
+  const sendTestReminder = async (kind: "plan" | "review") => {
+    const isReview = kind === "review";
+    const result = await showPlannerNotification(
+      "NotPlanGo",
+      isReview ? buildReviewReminderBody(state, today) : buildDailyReminderBody(state, today),
+      isReview ? "notplango-test-review-reminder" : "notplango-test-plan-reminder",
+      isReview ? "/?tab=today&focus=summary" : "/?tab=today",
+      reminderNotificationActions,
+    );
+    setNotificationPermission(getBrowserNotificationPermission());
+    setToast(result === "sent" ? (isReview ? "Тест итога отправлен" : "Тест плана отправлен") : result === "denied" ? "Уведомления запрещены в браузере" : "Уведомления не поддерживаются");
+  };
+
+  const snoozeRemindersToday = () => {
+    applyReminderSnooze("manual");
+  };
+
   const restoreLatestBackup = async () => {
     const snapshot = await plannerStorage.loadLatestSnapshot();
     if (!snapshot) {
@@ -1000,6 +1497,20 @@ function App() {
       setToast("Бэкап восстановлен");
       refreshStorageStatus();
     });
+  };
+
+  const installPwa = async () => {
+    const promptEvent = installPromptRef.current;
+    if (!promptEvent) {
+      setToast("Установите через меню браузера или Share на iPhone");
+      return;
+    }
+    await promptEvent.prompt();
+    const choice = await promptEvent.userChoice.catch(() => ({ outcome: "dismissed" as const, platform: "" }));
+    installPromptRef.current = null;
+    setInstallPromptAvailable(false);
+    setPwaStatus(getPwaRuntimeStatus());
+    setToast(choice.outcome === "accepted" ? "Установка PWA запущена" : "Установка отменена");
   };
 
   const screenProps: ScreenProps = {
@@ -1038,9 +1549,20 @@ function App() {
     renameHabit,
     deleteHabit,
     storageStatus,
+    notificationPermission,
+    pwaStatus,
+    installPromptAvailable,
     refreshStorageStatus,
     requestPersistentStorage,
     restoreLatestBackup,
+    installPwa,
+    setReminderEnabled,
+    setReminderTime,
+    setReviewReminderEnabled,
+    setReviewReminderTime,
+    toggleReminderWeekday,
+    sendTestReminder,
+    snoozeRemindersToday,
     resetDemo: () => {
       askConfirm("Вернуть демо?", "Текущие данные будут заменены. Перед этим лучше сделать экспорт JSON.", "Вернуть демо", () => {
         setState(createDemoState(weekStart));
@@ -1173,9 +1695,20 @@ type ScreenProps = {
   renameHabit: (id: string, title: string) => void;
   deleteHabit: (id: string) => void;
   storageStatus: StorageStatus;
+  notificationPermission: PlannerNotificationPermission;
+  pwaStatus: PwaRuntimeStatus;
+  installPromptAvailable: boolean;
   refreshStorageStatus: () => void;
   requestPersistentStorage: () => void;
   restoreLatestBackup: () => void;
+  installPwa: () => void;
+  setReminderEnabled: (enabled: boolean) => void;
+  setReminderTime: (time: string) => void;
+  setReviewReminderEnabled: (enabled: boolean) => void;
+  setReviewReminderTime: (time: string) => void;
+  toggleReminderWeekday: (day: ReminderWeekday) => void;
+  sendTestReminder: (kind: "plan" | "review") => void;
+  snoozeRemindersToday: () => void;
   resetDemo: () => void;
   resetEmpty: () => void;
   setStartMode: (startMode: PlannerSettings["startMode"]) => void;
@@ -1546,6 +2079,11 @@ function SettingsScreen(props: ScreenProps) {
   const logs = props.weekDays.map((day) => props.state.dayLogs[day] ?? defaultLog());
   const avg = (values: number[]) => values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : "0";
   const lastBackup = plannerStorage.latestBackupAt();
+  const remindersActive = props.state.settings.remindersEnabled || props.state.settings.reviewReminderEnabled;
+  const permissionCopy = getNotificationPermissionCopy(props.notificationPermission, remindersActive);
+  const nextReminder = getNextReminderSummary(props.state.settings);
+  const pwaReadinessItems = getPwaReadinessItems(props.pwaStatus);
+  const installAction = getPwaInstallActionCopy(props.pwaStatus, props.installPromptAvailable);
   return (
     <section className="screen">
       <Header eyebrow="управление" title="Настройки" />
@@ -1606,6 +2144,57 @@ function SettingsScreen(props: ScreenProps) {
         </div>
         <button className="secondaryButton" onClick={props.resetEmpty}>Начать с пустого планера</button>
       </article>
+      <article className="card reminderCard">
+        <div className="sectionTitle">
+          <h2>Уведомления</h2>
+          <span>{permissionCopy.label}</span>
+        </div>
+        <div className="reminderStatus">
+          <strong>{nextReminder}</strong>
+          <span>{permissionCopy.hint}</span>
+        </div>
+        <div className="reminderControls">
+          <div className="reminderRow">
+            <div>
+              <strong>План дня</strong>
+              <span>Открыть фокус, задачи и привычки</span>
+            </div>
+            <input type="time" value={props.state.settings.reminderTime} onChange={(event) => props.setReminderTime(event.target.value)} />
+            <button className={props.state.settings.remindersEnabled ? "secondaryButton" : ""} onClick={() => props.setReminderEnabled(!props.state.settings.remindersEnabled)}>
+              {props.state.settings.remindersEnabled ? "Выкл" : "Вкл"}
+            </button>
+          </div>
+          <div className="reminderRow">
+            <div>
+              <strong>Итог дня</strong>
+              <span>Закрыть сон, энергию, настроение</span>
+            </div>
+            <input type="time" value={props.state.settings.reviewReminderTime} onChange={(event) => props.setReviewReminderTime(event.target.value)} />
+            <button className={props.state.settings.reviewReminderEnabled ? "secondaryButton" : ""} onClick={() => props.setReviewReminderEnabled(!props.state.settings.reviewReminderEnabled)}>
+              {props.state.settings.reviewReminderEnabled ? "Выкл" : "Вкл"}
+            </button>
+          </div>
+          <div className="reminderDays" aria-label="Дни уведомлений">
+            {reminderWeekdays.map((day) => (
+              <button
+                className={props.state.settings.reminderDays.includes(day) ? "active" : ""}
+                key={day}
+                onClick={() => props.toggleReminderWeekday(day)}
+                type="button"
+              >
+                {dayNames[day - 1]}
+              </button>
+            ))}
+          </div>
+          <div className="reminderTestGrid">
+            <button className="secondaryButton reminderTestButton" onClick={() => props.sendTestReminder("plan")}>Тест плана</button>
+            <button className="secondaryButton reminderTestButton" onClick={() => props.sendTestReminder("review")}>Тест итога</button>
+          </div>
+          <button className="secondaryButton reminderTestButton" onClick={props.snoozeRemindersToday}>Не сегодня</button>
+          <p className="reminderSnoozeHint">Откладывает включенные напоминания до завтра, не меняя расписание.</p>
+        </div>
+        <p className="cardHint">Напоминание работает локально через браузерные уведомления. Для надежных фоновых push-уведомлений позже понадобится серверная синхронизация.</p>
+      </article>
       <article className="card">
         <div className="sectionTitle"><h2>Поиск</h2></div>
         <input className="searchInput" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти задачу, цель или заметку" />
@@ -1629,6 +2218,25 @@ function SettingsScreen(props: ScreenProps) {
           <div><span>Энергия</span><strong>{avg(logs.map((log) => log.energy))}/5</strong></div>
           <div><span>Настроение</span><strong>{avg(logs.map((log) => log.mood))}/5</strong></div>
           <div><span>Привычки</span><strong>{props.weekHabitProgress}%</strong></div>
+        </div>
+      </article>
+      <article className="card pwaCard">
+        <div className="sectionTitle">
+          <h2>PWA на телефоне</h2>
+          <span>{props.pwaStatus.standalone ? "установлено" : "проверка"}</span>
+        </div>
+        <div className="pwaGrid">
+          {pwaReadinessItems.map((item) => (
+            <div className={item.ok ? "ok" : ""} key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <em>{item.hint}</em>
+            </div>
+          ))}
+        </div>
+        <div className="pwaInstall">
+          <button className={installAction.enabled ? "" : "secondaryButton"} disabled={!installAction.enabled} onClick={props.installPwa}>{installAction.label}</button>
+          <p>{installAction.hint}</p>
         </div>
       </article>
       <article className="card storageCard">

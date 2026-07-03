@@ -1,21 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  buildDailyReminderBody,
+  buildReviewReminderBody,
   buildWeekMarkdown,
   compactBackup,
   createEmptyState,
   createTask,
+  formatRuCount,
   ensureCurrentWeek,
   getSelectedWeekDay,
   getThemeColor,
   getUpcomingTasks,
   getWeekDays,
   getUnfinishedTasksForDays,
+  getNextReminderSummary,
+  getNextReminderDelayMs,
+  getNotificationPermissionCopy,
+  getPwaInstallActionCopy,
+  getPwaReadinessItems,
+  getReminderLastDateAfterEnable,
   isSavedPlannerState,
+  isReminderTime,
   moveUnfinishedTasksToDay,
+  normalizeReminderDays,
   normalizeState,
+  parsePlannerDeepLink,
   searchPlannerState,
+  shouldSendDailyReminder,
+  shouldSkipReminderForDay,
+  snoozeRemindersForDate,
   themePresets,
+  toggleReminderDay,
 } from "./main";
 
 describe("planner week rollover", () => {
@@ -134,6 +150,198 @@ describe("theme presets", () => {
   });
 });
 
+describe("notification reminders", () => {
+  it("validates reminder time strings", () => {
+    expect(isReminderTime("09:30")).toBe(true);
+    expect(isReminderTime("23:59")).toBe(true);
+    expect(isReminderTime("24:00")).toBe(false);
+    expect(isReminderTime("9:00")).toBe(false);
+  });
+
+  it("detects whether the daily reminder is due only once per day", () => {
+    const now = new Date("2026-07-06T09:30:00");
+
+    expect(shouldSendDailyReminder(now, "09:00", "")).toBe(true);
+    expect(shouldSendDailyReminder(now, "10:00", "")).toBe(false);
+    expect(shouldSendDailyReminder(now, "09:00", "2026-07-06")).toBe(false);
+  });
+
+  it("calculates the next reminder delay", () => {
+    const before = new Date("2026-07-06T08:30:00");
+    const after = new Date("2026-07-06T09:30:00");
+
+    expect(getNextReminderDelayMs(before, "09:00", "")).toBe(30 * 60 * 1000);
+    expect(getNextReminderDelayMs(after, "09:00", "")).toBe(0);
+    expect(getNextReminderDelayMs(after, "09:00", "2026-07-06")).toBe(23.5 * 60 * 60 * 1000);
+  });
+
+  it("respects selected reminder weekdays", () => {
+    const mondayBefore = new Date("2026-07-06T08:30:00");
+    const mondayAfter = new Date("2026-07-06T09:30:00");
+
+    expect(shouldSendDailyReminder(mondayBefore, "09:00", "", [2])).toBe(false);
+    expect(getNextReminderDelayMs(mondayBefore, "09:00", "", [2])).toBe(24.5 * 60 * 60 * 1000);
+    expect(getNextReminderDelayMs(mondayAfter, "09:00", "2026-07-06", [1, 3])).toBe(47.5 * 60 * 60 * 1000);
+  });
+
+  it("normalizes and toggles reminder weekdays without empty schedules", () => {
+    expect(normalizeReminderDays([7, 1, 1, 9])).toEqual([1, 7]);
+    expect(normalizeReminderDays([])).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(toggleReminderDay([1, 2], 2)).toEqual([1]);
+    expect(toggleReminderDay([1], 1)).toEqual([1]);
+    expect(toggleReminderDay([1], 3)).toEqual([1, 3]);
+  });
+
+  it("summarizes the next active reminder", () => {
+    const state = createEmptyState("2026-07-06");
+    state.settings.remindersEnabled = true;
+    state.settings.reminderTime = "09:00";
+    state.settings.reviewReminderEnabled = true;
+    state.settings.reviewReminderTime = "21:30";
+
+    expect(getNextReminderSummary(state.settings, new Date("2026-07-06T08:30:00"))).toBe("План дня: сегодня в 09:00");
+
+    state.settings.reminderLastDate = "2026-07-06";
+    expect(getNextReminderSummary(state.settings, new Date("2026-07-06T09:30:00"))).toBe("Итог дня: сегодня в 21:30");
+
+    state.settings.reviewReminderEnabled = false;
+    expect(getNextReminderSummary(state.settings, new Date("2026-07-06T09:30:00"))).toBe("План дня: завтра в 09:00");
+  });
+
+  it("explains browser notification permission states", () => {
+    expect(getNotificationPermissionCopy("default", false).label).toBe("нужно разрешение");
+    expect(getNotificationPermissionCopy("granted", true).hint).toBe("Напоминания включены и работают локально на этом устройстве.");
+    expect(getNotificationPermissionCopy("denied", false).label).toBe("запрещены");
+    expect(getNotificationPermissionCopy("unsupported", false).hint).toBe("Этот браузер не поддерживает уведомления.");
+  });
+
+  it("prevents an immediate duplicate reminder when enabling after reminder time", () => {
+    expect(getReminderLastDateAfterEnable(new Date("2026-07-06T08:30:00"), "09:00")).toBe("");
+    expect(getReminderLastDateAfterEnable(new Date("2026-07-06T09:30:00"), "09:00")).toBe("2026-07-06");
+  });
+
+  it("snoozes only enabled reminders for the selected day", () => {
+    const state = createEmptyState("2026-07-06");
+    state.settings.remindersEnabled = true;
+    state.settings.reviewReminderEnabled = false;
+    state.settings.reminderLastDate = "";
+    state.settings.reviewReminderLastDate = "2026-07-05";
+
+    const settings = snoozeRemindersForDate(state.settings, "2026-07-06");
+
+    expect(settings.reminderLastDate).toBe("2026-07-06");
+    expect(settings.reviewReminderLastDate).toBe("2026-07-05");
+  });
+
+  it("builds a contextual daily reminder body", () => {
+    const state = createEmptyState("2026-07-06");
+    state.tasks["2026-07-06"] = [createTask("Open task", false), createTask("Closed task", true)];
+    state.habits = [
+      { id: "habit-1", title: "Walk", completions: {} },
+      { id: "habit-2", title: "Water", completions: { "2026-07-06": true } },
+    ];
+
+    expect(buildDailyReminderBody(state, "2026-07-06")).toBe("На сегодня осталось: 1 задача и 1 привычка.");
+  });
+
+  it("builds a completion reminder body when the day is closed", () => {
+    const state = createEmptyState("2026-07-06");
+    state.tasks["2026-07-06"] = [createTask("Closed task", true)];
+    state.habits = [{ id: "habit-1", title: "Walk", completions: { "2026-07-06": true } }];
+
+    expect(buildDailyReminderBody(state, "2026-07-06")).toBe("Все на сегодня закрыто. Можно оставить короткий итог дня.");
+  });
+
+  it("builds a review reminder body for the evening ritual", () => {
+    const state = createEmptyState("2026-07-06");
+    state.tasks["2026-07-06"] = [createTask("Closed task", true)];
+
+    expect(buildReviewReminderBody(state, "2026-07-06")).toBe("Закройте день: отметьте настроение и запишите итог после 1 закрытой задачи.");
+
+    state.dayLogs["2026-07-06"] = { sleep: 7, energy: 4, mood: 4, summary: "Done" };
+    expect(buildReviewReminderBody(state, "2026-07-06")).toBe("Итог дня уже есть. Можно быстро проверить задачи и закрыть вечер.");
+  });
+
+  it("skips reminders when the relevant day work is already closed", () => {
+    const state = createEmptyState("2026-07-06");
+    state.tasks["2026-07-06"] = [createTask("Closed task", true)];
+    state.habits = [{ id: "habit-1", title: "Walk", completions: { "2026-07-06": true } }];
+
+    expect(shouldSkipReminderForDay(state, "2026-07-06", "plan")).toBe(true);
+
+    state.habits[0].completions["2026-07-06"] = false;
+    expect(shouldSkipReminderForDay(state, "2026-07-06", "plan")).toBe(false);
+
+    state.habits = [];
+    state.tasks["2026-07-07"] = [];
+    expect(shouldSkipReminderForDay(state, "2026-07-07", "plan")).toBe(false);
+
+    state.dayLogs["2026-07-06"] = { sleep: 7, energy: 4, mood: 4, summary: "Done" };
+    expect(shouldSkipReminderForDay(state, "2026-07-06", "review")).toBe(true);
+  });
+
+  it("formats Russian count forms", () => {
+    const forms: [string, string, string] = ["задача", "задачи", "задач"];
+
+    expect(formatRuCount(1, forms)).toBe("1 задача");
+    expect(formatRuCount(2, forms)).toBe("2 задачи");
+    expect(formatRuCount(5, forms)).toBe("5 задач");
+    expect(formatRuCount(11, forms)).toBe("11 задач");
+    expect(formatRuCount(21, forms)).toBe("21 задача");
+  });
+});
+
+describe("PWA readiness", () => {
+  it("summarizes install and offline runtime state", () => {
+    const items = getPwaReadinessItems({
+      secureContext: true,
+      standalone: false,
+      serviceWorkerSupported: true,
+      serviceWorkerControlled: false,
+      online: true,
+    });
+
+    expect(items.map((item) => item.value)).toEqual(["готов", "в браузере", "после перезапуска", "online"]);
+    expect(items.map((item) => item.ok)).toEqual([true, false, false, true]);
+  });
+
+  it("marks installed offline-ready PWA state as ready", () => {
+    const items = getPwaReadinessItems({
+      secureContext: true,
+      standalone: true,
+      serviceWorkerSupported: true,
+      serviceWorkerControlled: true,
+      online: false,
+    });
+
+    expect(items.map((item) => item.value)).toEqual(["готов", "открыто как PWA", "кэш активен", "offline"]);
+    expect(items.every((item) => item.ok)).toBe(true);
+  });
+
+  it("describes the install action for browser and standalone modes", () => {
+    const browserStatus = {
+      secureContext: true,
+      standalone: false,
+      serviceWorkerSupported: true,
+      serviceWorkerControlled: true,
+      online: true,
+    };
+
+    expect(getPwaInstallActionCopy(browserStatus, true)).toMatchObject({ label: "Установить PWA", enabled: true });
+    expect(getPwaInstallActionCopy(browserStatus, false)).toMatchObject({ label: "Установить через браузер", enabled: false });
+    expect(getPwaInstallActionCopy({ ...browserStatus, standalone: true }, true)).toMatchObject({ label: "Уже установлено", enabled: false });
+  });
+});
+
+describe("planner deep links", () => {
+  it("parses notification deep links safely", () => {
+    expect(parsePlannerDeepLink("?tab=today&focus=summary")).toEqual({ tab: "today", focus: "summary", action: "" });
+    expect(parsePlannerDeepLink("tab=habits")).toEqual({ tab: "habits", focus: "", action: "" });
+    expect(parsePlannerDeepLink("?tab=today&action=snooze-reminders")).toEqual({ tab: "today", focus: "", action: "snooze-reminders" });
+    expect(parsePlannerDeepLink("?tab=unknown&focus=tasks&action=delete")).toEqual({ tab: "today", focus: "", action: "" });
+  });
+});
+
 describe("global search", () => {
   it("finds tasks, goals, summaries, and habits across stored planner data", () => {
     const state = createEmptyState("2026-07-06");
@@ -199,6 +407,13 @@ describe("import normalization", () => {
     expect(normalized.settings.weeklyExportReminder).toBe(true);
     expect(normalized.settings.theme).toBe("olive");
     expect(normalized.settings.lastExportAt).toBe("");
+    expect(normalized.settings.remindersEnabled).toBe(false);
+    expect(normalized.settings.reminderDays).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(normalized.settings.reminderTime).toBe("09:00");
+    expect(normalized.settings.reminderLastDate).toBe("");
+    expect(normalized.settings.reviewReminderEnabled).toBe(false);
+    expect(normalized.settings.reviewReminderTime).toBe("21:30");
+    expect(normalized.settings.reviewReminderLastDate).toBe("");
   });
 });
 

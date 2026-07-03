@@ -1043,6 +1043,122 @@ textarea {
   color: var(--app-accent-strong);
 }
 
+.reminderControls {
+  display: grid;
+  gap: 10px;
+}
+
+.reminderStatus {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: var(--app-accent-soft);
+  padding: 11px 12px;
+}
+
+.reminderStatus strong {
+  color: var(--app-accent-strong);
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.reminderStatus span {
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.reminderRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px 58px;
+  align-items: center;
+  gap: 8px;
+  min-height: 70px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-card-soft);
+  padding: 10px;
+}
+
+.reminderRow div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.reminderRow strong {
+  color: var(--app-text);
+  font-size: 0.94rem;
+  line-height: 1.1;
+}
+
+.reminderRow span {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.reminderControls input {
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface-solid);
+  color: var(--app-text);
+  padding: 0 8px;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.reminderControls button {
+  min-height: 46px;
+  border-radius: 8px;
+  background: var(--app-accent);
+  color: #fff;
+  font-weight: 900;
+}
+
+.reminderDays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.reminderDays button {
+  min-height: 40px;
+  border-radius: 8px;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.reminderDays button.active {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
+}
+
+.reminderTestButton {
+  width: 100%;
+}
+
+.reminderTestGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.reminderSnoozeHint {
+  margin: -2px 2px 0;
+  color: var(--app-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
 .searchResults,
 .historyList {
   display: grid;
@@ -1057,14 +1173,16 @@ textarea {
 }
 
 .statGrid,
-.storageGrid {
+.storageGrid,
+.pwaGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
 .statGrid div,
-.storageGrid div {
+.storageGrid div,
+.pwaGrid div {
   min-height: 72px;
   border-radius: 8px;
   background: var(--app-card-soft);
@@ -1072,7 +1190,8 @@ textarea {
 }
 
 .statGrid span,
-.storageGrid span {
+.storageGrid span,
+.pwaGrid span {
   display: block;
   color: var(--app-muted);
   font-size: 0.78rem;
@@ -1088,6 +1207,69 @@ textarea {
 
 .storageGrid strong {
   font-size: 1rem;
+}
+
+.pwaGrid div {
+  min-height: 118px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  border: 1px solid var(--app-border);
+}
+
+.pwaGrid div.ok {
+  background: var(--app-accent-soft);
+}
+
+.pwaGrid span {
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.pwaGrid strong {
+  color: var(--app-text);
+  font-size: 0.96rem;
+  line-height: 1.12;
+}
+
+.pwaGrid em {
+  color: var(--app-muted);
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.22;
+}
+
+.pwaInstall {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pwaInstall button {
+  min-height: 48px;
+  border-radius: 8px;
+  background: var(--app-accent);
+  color: #fff;
+  font-weight: 900;
+}
+
+.pwaInstall button.secondaryButton {
+  background: var(--app-card-soft);
+  color: var(--app-muted);
+}
+
+.pwaInstall button:disabled {
+  opacity: 0.82;
+}
+
+.pwaInstall p {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.3;
 }
 
 .storageCard {
