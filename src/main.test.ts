@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  buildWeekMarkdown,
   compactBackup,
   createEmptyState,
   createTask,
@@ -156,6 +157,27 @@ describe("global search", () => {
 
   it("returns an empty result for blank queries", () => {
     expect(searchPlannerState(createEmptyState("2026-07-06"), "   ")).toEqual([]);
+  });
+});
+
+describe("markdown export", () => {
+  it("builds a readable weekly snapshot", () => {
+    const state = createEmptyState("2026-07-06");
+    const days = getWeekDays("2026-07-06");
+    state.weeklyGoals["2026-07-06"] = [{ id: "goal-1", title: "Close weekly review", done: true }];
+    state.tasks[days[0]] = [createTask("Plan Monday", false)];
+    state.tasks[days[1]] = [createTask("Done task", true)];
+    state.habits = [{ id: "habit-1", title: "Walk", completions: { [days[0]]: true, [days[1]]: true } }];
+    state.dayLogs[days[0]] = { sleep: 7, energy: 4, mood: 4, summary: "Good start" };
+
+    const markdown = buildWeekMarkdown(state, "2026-07-06");
+
+    expect(markdown).toContain("# NotPlanGo · неделя 2026-07-06");
+    expect(markdown).toContain("- [x] Close weekly review");
+    expect(markdown).toContain("- [ ] Plan Monday");
+    expect(markdown).toContain("- [x] Done task");
+    expect(markdown).toContain("- Walk: 2/7");
+    expect(markdown).toContain("- 2026-07-06: Good start");
   });
 });
 

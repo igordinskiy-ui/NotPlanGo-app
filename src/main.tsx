@@ -473,6 +473,48 @@ export function searchPlannerState(state: PlannerState, query: string, limit = 1
   return [...taskResults, ...goalResults, ...summaryResults, ...habitResults].slice(0, limit);
 }
 
+function markdownCheckbox(done: boolean) {
+  return done ? "[x]" : "[ ]";
+}
+
+export function buildWeekMarkdown(state: PlannerState, weekStart: string) {
+  const days = getWeekDays(weekStart);
+  const goals = state.weeklyGoals[weekStart] ?? [];
+  const lines = [
+    `# NotPlanGo · неделя ${weekStart}`,
+    "",
+    "## Цели недели",
+    ...(goals.length ? goals.map((goal) => `- ${markdownCheckbox(goal.done)} ${goal.title}`) : ["- Целей пока нет"]),
+    "",
+    "## Задачи",
+  ];
+
+  days.forEach((day, index) => {
+    const tasks = state.tasks[day] ?? [];
+    lines.push("", `### ${dayNames[index]} · ${day}`);
+    lines.push(...(tasks.length ? tasks.map((task) => `- ${markdownCheckbox(task.done)} ${task.title}`) : ["- Задач нет"]));
+  });
+
+  lines.push("", "## Привычки");
+  if (state.habits.length === 0) {
+    lines.push("- Привычек пока нет");
+  } else {
+    state.habits.forEach((habit) => {
+      const done = days.filter((day) => habit.completions[day]).length;
+      lines.push(`- ${habit.title}: ${done}/7`);
+    });
+  }
+
+  lines.push("", "## Итоги дня");
+  days.forEach((day) => {
+    const log = state.dayLogs[day];
+    if (log?.summary.trim()) lines.push(`- ${day}: ${log.summary.trim()}`);
+  });
+  if (lines[lines.length - 1] === "## Итоги дня") lines.push("- Записей пока нет");
+
+  return `${lines.join("\n")}\n`;
+}
+
 export function compactBackup(state: PlannerState, label = "Автобэкап"): PlannerBackup {
   const snapshot = { ...state, backups: [] };
   return { id: uid(), createdAt: new Date().toISOString(), label, data: JSON.stringify(snapshot) };
@@ -903,6 +945,17 @@ function App() {
     setToast("JSON экспортирован");
   };
 
+  const exportWeekMarkdown = () => {
+    const blob = new Blob([buildWeekMarkdown(state, viewWeekStart)], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `notplango-week-${viewWeekStart}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setToast("Неделя экспортирована в Markdown");
+  };
+
   const importJson = async (file: File | undefined) => {
     if (!file) return;
     try {
@@ -1003,6 +1056,7 @@ function App() {
     setStartMode: (startMode) => updateState((current) => ({ ...current, settings: { ...current.settings, startMode } })),
     setTheme: (theme) => updateState((current) => ({ ...current, settings: { ...current.settings, theme } })),
     exportJson,
+    exportWeekMarkdown,
     importJson,
     importInputRef,
   };
@@ -1127,6 +1181,7 @@ type ScreenProps = {
   setStartMode: (startMode: PlannerSettings["startMode"]) => void;
   setTheme: (theme: PlannerTheme) => void;
   exportJson: () => void;
+  exportWeekMarkdown: () => void;
   importJson: (file: File | undefined) => void;
   importInputRef: RefObject<HTMLInputElement | null>;
 };
@@ -1423,6 +1478,7 @@ function WeekScreen(props: ScreenProps) {
           {props.state.settings.lastExportAt ? `Последний ручной экспорт: ${new Date(props.state.settings.lastExportAt).toLocaleString("ru-RU")}` : "Ручной экспорт еще не делали."}
         </p>
         <button onClick={props.exportJson}>Экспорт JSON</button>
+        <button className="secondaryButton" onClick={props.exportWeekMarkdown}>Экспорт недели .md</button>
       </article>
       <article className="card">
         <div className="sectionTitle">
@@ -1598,6 +1654,7 @@ function SettingsScreen(props: ScreenProps) {
       <article className="card actionsCard">
         <div className="sectionTitle"><h2>Данные</h2></div>
         <button onClick={props.exportJson}>Экспорт JSON</button>
+        <button className="secondaryButton" onClick={props.exportWeekMarkdown}>Экспорт недели .md</button>
         <button className="secondaryButton" onClick={() => props.importInputRef.current?.click()}>Импорт JSON</button>
         <input ref={props.importInputRef} className="hiddenFileInput" type="file" accept="application/json,.json" onChange={(event) => props.importJson(event.target.files?.[0])} />
         <p className="backupNote">
