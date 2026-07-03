@@ -1,82 +1,66 @@
 # NotPlanGo
 
-Mobile-first PWA for weekly planning: Today, Week, Habits, Settings, local-first storage, JSON export/import, and installable PWA assets.
+NotPlanGo is a mobile-first weekly planner for people who want a calm, focused alternative to spreadsheet planning.
 
-## Stack
+It brings the week, daily tasks, habits, mood, energy, sleep, and short daily reflection into one installable web app designed for everyday use on a phone.
 
-- React + TypeScript + Vite
-- Motion animations
-- Plain CSS with theme variables
-- `localStorage` fallback plus IndexedDB latest snapshot
-- PWA manifest and service worker
-- No backend, auth, or payments yet
+![NotPlanGo Today](public/marketing-screenshots/01-phone-today.png)
 
-## Local Development
+## What It Helps With
 
-```bash
-npm install
-npm run dev
-```
+- Plan today without opening a spreadsheet.
+- Keep weekly goals visible and measurable.
+- Track habits across the week.
+- Move unfinished tasks forward without losing context.
+- Add tasks for today, tomorrow, or a future date.
+- Review sleep, energy, mood, and the result of the day.
+- Keep personal planning data on the device.
 
-The dev server runs on `0.0.0.0` by default. For local browser testing, open:
+## Main Screens
 
-```text
-http://127.0.0.1:5173/
-```
+**Today**
 
-## Verification
+Daily focus, circular progress, tasks, habits, sleep, energy, mood, and a short daily summary.
 
-```bash
-npm test
-npm run build
-npm run verify:pwa
-npm audit
-```
+**Week**
 
-Current local verification status:
+Weekly goals, progress by day, task completion, habit progress, week navigation, and upcoming plans.
 
-- `npm test`: 6 tests passing.
-- `npm run build`: passing.
-- `npm run verify:pwa`: passing.
-- `npm audit`: 0 vulnerabilities.
-- Local browser smoke at 390x844: task persistence, theme persistence, Settings controls.
+**Habits**
 
-GitHub Actions CI runs install, tests, production build, PWA asset verification, and audit on `main` pushes and pull requests.
+A simple weekly habit tracker with large tap targets and clear completion states.
 
-## PWA
+**Settings**
 
-The app includes:
+Habit editing, color themes, storage status, JSON import/export, and local backup restore.
 
-- PNG icons for `192x192`, `512x512`, maskable icon, and `apple-touch-icon`.
-- `public/manifest.webmanifest`.
-- `public/sw.js`.
-- Vercel and Netlify header configs.
-- Manifest screenshots copied into `public/marketing-screenshots`.
+## Mobile-First Experience
 
-Production PWA gates still require real-device checks:
+NotPlanGo is built around phone use:
 
-- Android Chrome install, home-screen launch, offline launch.
-- iPhone Safari Add to Home Screen, standalone launch, offline launch.
-- JSON export from the installed app.
+- Large tap areas.
+- Bottom navigation.
+- Floating add button.
+- No spreadsheet-style main interface.
+- Smooth task and habit interactions.
+- Light visual style with multiple calm color themes.
 
-Use [PWA_DEVICE_TEST_CHECKLIST.md](./PWA_DEVICE_TEST_CHECKLIST.md) before treating a deploy as ready for daily use.
+![NotPlanGo Overview](public/marketing-screenshots/06-desktop-overview.png)
 
-## Data Model
+## Privacy And Data
 
-All planner data is local to the browser:
+NotPlanGo is local-first.
 
-- App bootstrap loads the latest IndexedDB snapshot first.
-- `localStorage` remains a fallback and migration copy.
-- Settings shows storage usage, persistence status, backup availability, and restore controls.
-- JSON export/import is the manual portability and backup path.
+Your planner data is stored in the browser on your device. There is no account system, backend database, or server sync in the current version.
 
-There is no server sync yet. Users should export JSON before destructive resets or important weekly reviews.
+For portability and backup, the app includes JSON export and import.
 
-## Product Roadmap
+## Installable PWA
 
-See:
+NotPlanGo can be installed from a supported mobile browser as a Progressive Web App. After the first successful visit, the app shell is available offline through the service worker.
 
-- [PRODUCT_AUDIT_AND_ROADMAP.md](./PRODUCT_AUDIT_AND_ROADMAP.md)
-- [SECURITY_MONETIZATION_PLAN.md](./SECURITY_MONETIZATION_PLAN.md)
+Supported install assets include Android icons, a maskable icon, Apple touch icon, manifest metadata, and mobile screenshots.
 
-Recommended monetization path is free local PWA plus one-time Pro unlock. Do not implement paid entitlement as a plain frontend/localStorage flag.
+## Built For Daily Planning
+
+NotPlanGo focuses on a clear weekly rhythm: plan the day, keep habits visible, review progress, and carry plans forward without returning to a spreadsheet.
