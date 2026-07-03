@@ -2,6 +2,14 @@
 
 Use this checklist on the production HTTPS URL after deploy.
 
+## Local Browser Smoke
+
+- 2026-07-03: checked `http://127.0.0.1:5173/` at 390x844.
+- Added a task through the floating `+` sheet.
+- Reloaded the app and confirmed the task is still present.
+- Confirmed selected theme persists after reload.
+- Confirmed Settings shows 8 theme presets, Storage, Export JSON, and Restore backup controls.
+
 ## Android Chrome
 
 - Open the HTTPS URL.

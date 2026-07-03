@@ -1,4 +1,21 @@
 :root {
+  --app-text: #2f302b;
+  --app-muted: #85806f;
+  --app-bg: #f4efe6;
+  --app-bg-soft: #ede4d7;
+  --app-surface: rgba(255, 255, 255, 0.86);
+  --app-surface-solid: #fffdfa;
+  --app-card-soft: #f7f4ed;
+  --app-border: rgba(95, 91, 70, 0.08);
+  --app-shadow: rgba(82, 73, 52, 0.08);
+  --app-accent: #87915f;
+  --app-accent-strong: #6f7a4a;
+  --app-accent-soft: #eef2df;
+  --app-accent-bg: #e8edd7;
+  --app-danger: #8b4d3f;
+  --visual-viewport-height: 100dvh;
+  --visual-viewport-offset-top: 0px;
+  --keyboard-inset: 0px;
   color: #2f302b;
   background: #f4efe6;
   font-family:
@@ -19,6 +36,134 @@ body {
   background:
     radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.9), transparent 28rem),
     linear-gradient(180deg, #f7f2ea 0%, #ede4d7 100%);
+}
+
+.appShell[data-theme="olive"] {
+  --app-text: #2f302b;
+  --app-muted: #85806f;
+  --app-bg: #f4efe6;
+  --app-bg-soft: #ede4d7;
+  --app-surface: rgba(255, 255, 255, 0.86);
+  --app-surface-solid: #fffdfa;
+  --app-card-soft: #f7f4ed;
+  --app-border: rgba(95, 91, 70, 0.08);
+  --app-shadow: rgba(82, 73, 52, 0.08);
+  --app-accent: #87915f;
+  --app-accent-strong: #6f7a4a;
+  --app-accent-soft: #eef2df;
+  --app-accent-bg: #e8edd7;
+}
+
+.appShell[data-theme="sage"] {
+  --app-text: #28312a;
+  --app-muted: #718070;
+  --app-bg: #eef2e8;
+  --app-bg-soft: #dfe8d7;
+  --app-surface: rgba(251, 253, 248, 0.88);
+  --app-surface-solid: #fbfdf8;
+  --app-card-soft: #f1f6ed;
+  --app-border: rgba(72, 98, 65, 0.11);
+  --app-shadow: rgba(66, 90, 62, 0.09);
+  --app-accent: #6f8a67;
+  --app-accent-strong: #526b4d;
+  --app-accent-soft: #e3ecd9;
+  --app-accent-bg: #dbe8d2;
+}
+
+.appShell[data-theme="mint"] {
+  --app-text: #24322f;
+  --app-muted: #6b827c;
+  --app-bg: #edf6f1;
+  --app-bg-soft: #d9eee5;
+  --app-surface: rgba(255, 255, 255, 0.9);
+  --app-surface-solid: #ffffff;
+  --app-card-soft: #f0faf5;
+  --app-border: rgba(49, 126, 104, 0.11);
+  --app-shadow: rgba(46, 111, 94, 0.09);
+  --app-accent: #4f9b83;
+  --app-accent-strong: #387a67;
+  --app-accent-soft: #dcf0e8;
+  --app-accent-bg: #d3ebe2;
+}
+
+.appShell[data-theme="clay"] {
+  --app-text: #362d27;
+  --app-muted: #8a7669;
+  --app-bg: #f5ece4;
+  --app-bg-soft: #ead9cd;
+  --app-surface: rgba(255, 250, 246, 0.9);
+  --app-surface-solid: #fffaf6;
+  --app-card-soft: #fbf0e8;
+  --app-border: rgba(139, 88, 58, 0.12);
+  --app-shadow: rgba(112, 76, 50, 0.09);
+  --app-accent: #b57456;
+  --app-accent-strong: #8f563d;
+  --app-accent-soft: #f1dfd2;
+  --app-accent-bg: #ead4c4;
+}
+
+.appShell[data-theme="terracotta"] {
+  --app-text: #382b27;
+  --app-muted: #8b726a;
+  --app-bg: #f8eee8;
+  --app-bg-soft: #efd7cc;
+  --app-surface: rgba(255, 250, 247, 0.91);
+  --app-surface-solid: #fffaf7;
+  --app-card-soft: #fceee8;
+  --app-border: rgba(154, 76, 54, 0.12);
+  --app-shadow: rgba(126, 65, 49, 0.09);
+  --app-accent: #c3664b;
+  --app-accent-strong: #9e4d38;
+  --app-accent-soft: #f5dfd6;
+  --app-accent-bg: #efd1c5;
+}
+
+.appShell[data-theme="lavender"] {
+  --app-text: #2f2c39;
+  --app-muted: #777189;
+  --app-bg: #f1edf7;
+  --app-bg-soft: #e3dcef;
+  --app-surface: rgba(253, 251, 255, 0.91);
+  --app-surface-solid: #fdfbff;
+  --app-card-soft: #f4f0fb;
+  --app-border: rgba(104, 89, 146, 0.12);
+  --app-shadow: rgba(82, 70, 116, 0.09);
+  --app-accent: #7b70a8;
+  --app-accent-strong: #61578a;
+  --app-accent-soft: #e9e3f4;
+  --app-accent-bg: #e0d8ef;
+}
+
+.appShell[data-theme="sky"] {
+  --app-text: #26333a;
+  --app-muted: #6d7f88;
+  --app-bg: #edf4f8;
+  --app-bg-soft: #d9e8ef;
+  --app-surface: rgba(251, 253, 255, 0.91);
+  --app-surface-solid: #fbfdff;
+  --app-card-soft: #eef7fb;
+  --app-border: rgba(63, 113, 139, 0.12);
+  --app-shadow: rgba(53, 92, 112, 0.09);
+  --app-accent: #5489a6;
+  --app-accent-strong: #3f6f88;
+  --app-accent-soft: #dfeef5;
+  --app-accent-bg: #d4e7f0;
+}
+
+.appShell[data-theme="graphite"] {
+  --app-text: #272b29;
+  --app-muted: #737a75;
+  --app-bg: #ecebe6;
+  --app-bg-soft: #ddded8;
+  --app-surface: rgba(255, 255, 255, 0.9);
+  --app-surface-solid: #ffffff;
+  --app-card-soft: #f2f2ee;
+  --app-border: rgba(59, 67, 63, 0.12);
+  --app-shadow: rgba(48, 54, 51, 0.09);
+  --app-accent: #59615d;
+  --app-accent-strong: #404846;
+  --app-accent-soft: #e1e4df;
+  --app-accent-bg: #d7ddd8;
 }
 
 html {
@@ -43,6 +188,10 @@ button {
 .appShell {
   min-height: 100vh;
   padding: max(14px, env(safe-area-inset-top)) 14px calc(92px + env(safe-area-inset-bottom));
+  color: var(--app-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.76), transparent 28rem),
+    linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg-soft) 100%);
 }
 
 .phoneFrame {
@@ -62,7 +211,7 @@ button {
 
 .screenHeader span,
 .muted {
-  color: #85806f;
+  color: var(--app-muted);
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -79,10 +228,10 @@ button {
 .card,
 .heroCard,
 .dayCard {
-  border: 1px solid rgba(95, 91, 70, 0.08);
+  border: 1px solid var(--app-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 18px 45px rgba(82, 73, 52, 0.08);
+  background: var(--app-surface);
+  box-shadow: 0 18px 45px var(--app-shadow);
 }
 
 .heroCard {
@@ -94,8 +243,8 @@ button {
   padding: 20px;
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(240, 232, 216, 0.94)),
-    #ffffff;
+    linear-gradient(135deg, var(--app-surface-solid), var(--app-accent-soft)),
+    var(--app-surface-solid);
 }
 
 .heroCard h2 {
@@ -108,7 +257,7 @@ button {
 
 .heroCard p {
   margin: 0;
-  color: #716c5d;
+  color: var(--app-muted);
 }
 
 .compactHero {
@@ -117,8 +266,8 @@ button {
 
 .weekHero {
   background:
-    linear-gradient(135deg, rgba(232, 237, 215, 0.96), rgba(255, 255, 255, 0.92)),
-    #ffffff;
+    linear-gradient(135deg, var(--app-accent-bg), var(--app-surface-solid)),
+    var(--app-surface-solid);
 }
 
 .card {
@@ -148,8 +297,8 @@ button {
   height: 28px;
   padding: 0 8px;
   border-radius: 999px;
-  color: #6f7a4a;
-  background: #eef2df;
+  color: var(--app-accent-strong);
+  background: var(--app-accent-soft);
   font-weight: 800;
 }
 
@@ -168,17 +317,17 @@ button {
 
 .ringTrack {
   fill: none;
-  stroke: #ede9e0;
+  stroke: var(--app-accent-soft);
 }
 
 .ringValue {
   fill: none;
-  stroke: #87915f;
+  stroke: var(--app-accent);
   stroke-linecap: round;
 }
 
 .ring strong {
-  color: #6e7652;
+  color: var(--app-accent-strong);
   font-size: 1rem;
 }
 
@@ -196,11 +345,11 @@ button {
 textarea {
   min-height: 48px;
   width: 100%;
-  border: 1px solid #e5dfd2;
+  border: 1px solid var(--app-border);
   border-radius: 8px;
   outline: 0;
-  background: #fbfaf6;
-  color: #2f302b;
+  background: var(--app-surface-solid);
+  color: var(--app-text);
 }
 
 .addForm input,
@@ -217,15 +366,15 @@ textarea {
 .goalItem input:focus,
 .searchInput:focus,
 textarea:focus {
-  border-color: #9aa472;
-  box-shadow: 0 0 0 4px rgba(135, 145, 95, 0.14);
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 18%, transparent);
 }
 
 .addForm button,
 .actionsCard button {
   min-height: 48px;
   border-radius: 8px;
-  background: #87915f;
+  background: var(--app-accent);
   color: white;
   font-weight: 900;
 }
@@ -251,10 +400,10 @@ textarea:focus {
   gap: 10px;
   min-height: 76px;
   padding: 10px;
-  border: 1px solid #ece4d5;
+  border: 1px solid var(--app-border);
   border-radius: 10px;
-  background: linear-gradient(180deg, #fffdf8 0%, #f7f4ed 100%);
-  box-shadow: 0 10px 26px rgba(82, 73, 52, 0.05);
+  background: linear-gradient(180deg, var(--app-surface-solid) 0%, var(--app-card-soft) 100%);
+  box-shadow: 0 10px 26px var(--app-shadow);
 }
 
 .taskItem span {
@@ -279,7 +428,7 @@ textarea:focus {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #34352f;
+  color: var(--app-text);
   font-weight: 800;
   line-height: 1.2;
 }
@@ -357,6 +506,20 @@ textarea:focus {
 
 .overdueCard {
   border-color: #ead9bd;
+}
+
+.upcomingCard {
+  border-color: #dce7c5;
+}
+
+.upcomingCard .overdueItem {
+  background: #fbfcf4;
+  border-color: #e0e8c8;
+}
+
+.upcomingCard .overdueItem span {
+  background: #e8edd7;
+  color: #59633a;
 }
 
 .cardHint {
@@ -447,13 +610,13 @@ textarea:focus {
 
 .checkButton {
   background: #ffffff;
-  color: #6f7a4a;
-  box-shadow: inset 0 0 0 2px #d9ddc6;
+  color: var(--app-accent-strong);
+  box-shadow: inset 0 0 0 2px var(--app-accent-bg);
   margin-top: 1px;
 }
 
 .taskItem.isDone .checkButton {
-  background: #87915f;
+  background: var(--app-accent);
   color: #ffffff;
   box-shadow: none;
 }
@@ -463,6 +626,53 @@ textarea:focus {
   background: transparent;
   color: #a19886;
   font-size: 1.25rem;
+}
+
+.themeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.themeGrid button {
+  display: grid;
+  gap: 7px;
+  min-height: 104px;
+  padding: 11px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-card-soft);
+  color: var(--app-text);
+  text-align: left;
+}
+
+.themeGrid button.active {
+  border-color: color-mix(in srgb, var(--app-accent) 55%, transparent);
+  background: var(--app-accent-soft);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--app-accent) 26%, transparent);
+}
+
+.themeSwatches {
+  display: flex;
+  gap: 5px;
+}
+
+.themeSwatches i {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(47, 48, 43, 0.1);
+  border-radius: 999px;
+}
+
+.themeGrid strong {
+  line-height: 1;
+}
+
+.themeGrid em {
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .taskItem .deleteButton {
@@ -485,8 +695,8 @@ textarea:focus {
   min-height: 44px;
   padding: 0 12px;
   border-radius: 8px;
-  background: #f6f2e9;
-  color: #565346;
+  background: var(--app-card-soft);
+  color: var(--app-text);
   font-weight: 700;
 }
 
@@ -501,12 +711,12 @@ textarea:focus {
 }
 
 .habitChip.isDone {
-  background: #e6ecd4;
-  color: #59633a;
+  background: var(--app-accent-bg);
+  color: var(--app-accent-strong);
 }
 
 .habitChip.isDone span {
-  background: #87915f;
+  background: var(--app-accent);
 }
 
 .metricControl {
@@ -519,7 +729,7 @@ textarea:focus {
 }
 
 .metricControl input {
-  accent-color: #87915f;
+  accent-color: var(--app-accent);
 }
 
 .metricControl strong {
@@ -557,7 +767,7 @@ textarea {
   min-height: 48px;
   padding: 8px;
   border-radius: 8px;
-  background: #f8f5ee;
+  background: var(--app-card-soft);
 }
 
 .goalItem button:first-child {
@@ -572,7 +782,7 @@ textarea {
 }
 
 .goalItem.isDone button:first-child {
-  background: #87915f;
+  background: var(--app-accent);
   color: white;
 }
 
@@ -589,14 +799,14 @@ textarea {
 }
 
 .dayCard.isToday {
-  border-color: rgba(135, 145, 95, 0.42);
-  background: #fffdf8;
+  border-color: color-mix(in srgb, var(--app-accent) 45%, transparent);
+  background: var(--app-surface-solid);
 }
 
 .dayCard.isSelected {
   box-shadow:
-    0 0 0 2px rgba(135, 145, 95, 0.32),
-    0 18px 45px rgba(82, 73, 52, 0.08);
+    0 0 0 2px color-mix(in srgb, var(--app-accent) 34%, transparent),
+    0 18px 45px var(--app-shadow);
 }
 
 .dayCardTop {
@@ -733,30 +943,53 @@ textarea {
   font-size: 0.78rem;
 }
 
-.statGrid {
+.statGrid,
+.storageGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.statGrid div {
+.statGrid div,
+.storageGrid div {
   min-height: 72px;
   border-radius: 8px;
   background: #f7f4ed;
   padding: 12px;
 }
 
-.statGrid span {
+.statGrid span,
+.storageGrid span {
   display: block;
   color: #827b69;
   font-size: 0.78rem;
 }
 
-.statGrid strong {
+.statGrid strong,
+.storageGrid strong {
   display: block;
   margin-top: 6px;
   color: #3d412c;
   font-size: 1.35rem;
+}
+
+.storageGrid strong {
+  font-size: 1rem;
+}
+
+.storageCard {
+  border-color: #dfe7c9;
+}
+
+.storageActions {
+  display: grid;
+  gap: 8px;
+}
+
+.storageActions button {
+  min-height: 46px;
+  border-radius: 8px;
+  font-weight: 900;
 }
 
 .actionsCard {
@@ -824,7 +1057,6 @@ textarea {
 
 .confirmSheet div {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
@@ -837,12 +1069,17 @@ textarea {
 
 .sheetOverlay {
   position: fixed;
-  inset: 0;
+  top: var(--visual-viewport-offset-top, 0px);
+  right: 0;
+  bottom: auto;
+  left: 0;
   z-index: 45;
   display: grid;
   align-items: end;
+  height: var(--visual-viewport-height, 100dvh);
   background: rgba(47, 48, 43, 0.28);
   padding: 18px;
+  overflow: hidden;
 }
 
 .addTaskSheet {
@@ -953,7 +1190,7 @@ textarea {
   width: 100%;
   min-height: 52px;
   border-radius: 10px;
-  background: #87915f;
+  background: var(--app-accent);
   color: #ffffff;
   font-weight: 900;
 }
@@ -967,12 +1204,12 @@ textarea {
 .emptyState {
   padding: 14px;
   border-radius: 8px;
-  background: #f8f5ee;
-  color: #77715f;
+  background: var(--app-card-soft);
+  color: var(--app-muted);
 }
 
 .emptyState strong {
-  color: #3a392f;
+  color: var(--app-text);
 }
 
 .emptyState p {
@@ -992,10 +1229,10 @@ textarea {
   min-height: 68px;
   margin: 0 auto;
   padding: 8px;
-  border: 1px solid rgba(81, 76, 61, 0.08);
+  border: 1px solid var(--app-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 16px 40px rgba(66, 58, 43, 0.16);
+  background: color-mix(in srgb, var(--app-surface-solid) 92%, transparent);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--app-shadow) 80%, rgba(66, 58, 43, 0.12));
   backdrop-filter: blur(18px);
 }
 
@@ -1009,14 +1246,14 @@ textarea {
   min-height: 52px;
   border-radius: 8px;
   background: transparent;
-  color: #847e6d;
+  color: var(--app-muted);
   font-size: 0.72rem;
   font-weight: 800;
 }
 
 .bottomNav button.active {
-  background: #e8edd7;
-  color: #59633a;
+  background: var(--app-accent-bg);
+  color: var(--app-accent-strong);
 }
 
 .bottomNav span {
@@ -1034,11 +1271,11 @@ textarea {
   width: 58px;
   height: 58px;
   border-radius: 18px;
-  background: #87915f;
+  background: var(--app-accent);
   color: #ffffff;
   font-size: 2rem;
   font-weight: 900;
-  box-shadow: 0 18px 42px rgba(89, 99, 58, 0.3);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--app-accent) 38%, transparent);
 }
 
 .toast {

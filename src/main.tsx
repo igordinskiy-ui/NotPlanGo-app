@@ -8,14 +8,18 @@ import "./styles.css";
 type Tab = "today" | "week" | "habits" | "settings";
 type TaskPriority = "low" | "normal" | "high";
 type TaskRepeat = "none" | "daily" | "weekly";
-type Task = { id: string; title: string; done: boolean; priority: TaskPriority; repeat: TaskRepeat; createdAt: string; updatedAt: string };
+export type Task = { id: string; title: string; done: boolean; priority: TaskPriority; repeat: TaskRepeat; createdAt: string; updatedAt: string };
 type WeekGoal = { id: string; title: string; done: boolean };
 type Habit = { id: string; title: string; completions: Record<string, boolean> };
 type DayLog = { sleep: number; energy: number; mood: number; summary: string };
-type PlannerSettings = { startMode: "demo" | "empty"; weeklyExportReminder: boolean };
+type PlannerTheme = "olive" | "sage" | "mint" | "clay" | "terracotta" | "lavender" | "sky" | "graphite";
+type PlannerSettings = { startMode: "demo" | "empty"; weeklyExportReminder: boolean; theme: PlannerTheme; lastExportAt: string };
 type PlannerBackup = { id: string; createdAt: string; label: string; data: string };
+type StorageStatus = { usageLabel: string; quotaLabel: string; persisted: boolean | null; backupAt: string; backupAvailable: boolean };
+type DatedTask = { day: string; task: Task };
+type ConfirmAction = { title: string; text: string; confirmLabel: string; onConfirm: () => void; secondaryLabel?: string; onSecondary?: () => void };
 
-type PlannerState = {
+export type PlannerState = {
   version: 3;
   activeWeekStart: string;
   weeklyGoals: Record<string, WeekGoal[]>;
@@ -35,14 +39,14 @@ type LegacyPlannerState = {
   habits: Habit[];
   dayLogs: Record<string, DayLog>;
 };
-type SavedPlannerState = {
+export type SavedPlannerState = {
   version?: number;
   weekStart?: string;
   activeWeekStart?: string;
-  weeklyGoals?: WeekGoal[] | Record<string, WeekGoal[]>;
-  tasks?: Record<string, Partial<Task>[]>;
-  habits?: Habit[];
-  dayLogs?: Record<string, DayLog>;
+  weeklyGoals?: WeekGoal[] | Record<string, unknown>;
+  tasks?: Record<string, unknown>;
+  habits?: unknown[];
+  dayLogs?: Record<string, unknown>;
   settings?: Partial<PlannerSettings>;
   backups?: PlannerBackup[];
 };
@@ -54,6 +58,7 @@ declare global {
 const STORAGE_KEY = "notplango-state-v3";
 const LEGACY_STORAGE_KEYS = ["notplango-state-v2", "notplango-state-v1"];
 const AUTO_BACKUP_KEY = "notplango-auto-backup-v1";
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 const dayNames = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const fullDayNames = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
 const moods = ["туманно", "ровно", "собранно", "легко", "сильно"];
@@ -67,6 +72,16 @@ const repeatOptions: { value: TaskRepeat; label: string }[] = [
   { value: "daily", label: "каждый день" },
   { value: "weekly", label: "еженедельно" },
 ];
+const themePresets: { id: PlannerTheme; title: string; hint: string; swatches: string[] }[] = [
+  { id: "olive", title: "Олива", hint: "теплый базовый", swatches: ["#f4efe6", "#87915f", "#fffdfa"] },
+  { id: "sage", title: "Шалфей", hint: "тихий зеленый", swatches: ["#eef2e8", "#6f8a67", "#fbfdf8"] },
+  { id: "mint", title: "Мята", hint: "свежий светлый", swatches: ["#edf6f1", "#4f9b83", "#ffffff"] },
+  { id: "clay", title: "Глина", hint: "мягкий земляной", swatches: ["#f5ece4", "#b57456", "#fffaf6"] },
+  { id: "terracotta", title: "Терракота", hint: "теплый акцент", swatches: ["#f8eee8", "#c3664b", "#fffaf7"] },
+  { id: "lavender", title: "Лаванда", hint: "спокойный вечер", swatches: ["#f1edf7", "#7b70a8", "#fdfbff"] },
+  { id: "sky", title: "Небо", hint: "чистый воздух", swatches: ["#edf4f8", "#5489a6", "#fbfdff"] },
+  { id: "graphite", title: "Графит", hint: "строгий контраст", swatches: ["#ecebe6", "#59615d", "#ffffff"] },
+];
 
 const uid = () => crypto.randomUUID();
 const toISO = (date: Date) => {
@@ -79,20 +94,25 @@ const parseISO = (iso: string) => new Date(`${iso}T12:00:00`);
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const nextPriority = (priority: TaskPriority) => priorityOptions[(priorityOptions.findIndex((option) => option.value === priority) + 1) % priorityOptions.length].value;
 const nextRepeat = (repeat: TaskRepeat) => repeatOptions[(repeatOptions.findIndex((option) => option.value === repeat) + 1) % repeatOptions.length].value;
-const addDays = (iso: string, amount: number) => {
+export const addDays = (iso: string, amount: number) => {
   const date = parseISO(iso);
   date.setDate(date.getDate() + amount);
   return toISO(date);
 };
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
-function getWeekStart(date = new Date()) {
+export function getWeekStart(date = new Date()) {
   const copy = new Date(date);
   const day = copy.getDay() || 7;
   copy.setDate(copy.getDate() - day + 1);
   return toISO(copy);
 }
 
-function getWeekDays(weekStart: string) {
+export function getWeekDays(weekStart: string) {
   const start = parseISO(weekStart);
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
@@ -106,10 +126,10 @@ function defaultLog(): DayLog {
 }
 
 function defaultSettings(): PlannerSettings {
-  return { startMode: "demo", weeklyExportReminder: true };
+  return { startMode: "demo", weeklyExportReminder: true, theme: "olive", lastExportAt: "" };
 }
 
-function createTask(title: string, done = false, patch: Partial<Task> = {}): Task {
+export function createTask(title: string, done = false, patch: Partial<Task> = {}): Task {
   const now = new Date().toISOString();
   return {
     id: patch.id ?? uid(),
@@ -124,6 +144,26 @@ function createTask(title: string, done = false, patch: Partial<Task> = {}): Tas
 
 function normalizeTask(task: Partial<Task> & { id?: string; title?: string; done?: boolean }): Task {
   return createTask(task.title ?? "", Boolean(task.done), task);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export function isSavedPlannerState(value: unknown): value is SavedPlannerState {
+  if (!isRecord(value)) return false;
+  const tasks = value.tasks;
+  const goals = value.weeklyGoals;
+  if (tasks !== undefined && !isRecord(tasks)) return false;
+  if (goals !== undefined && !Array.isArray(goals) && !isRecord(goals)) return false;
+  if (value.habits !== undefined && !Array.isArray(value.habits)) return false;
+  if (value.dayLogs !== undefined && !isRecord(value.dayLogs)) return false;
+  return true;
+}
+
+function boundedNumber(value: unknown, fallback: number, min: number, max: number) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? clamp(numberValue, min, max) : fallback;
 }
 
 function createWeekGoals(): WeekGoal[] {
@@ -159,7 +199,7 @@ function createWeekTasks(weekStart: string) {
   );
 }
 
-function createEmptyWeekTasks(weekStart: string) {
+export function createEmptyWeekTasks(weekStart: string) {
   return Object.fromEntries(getWeekDays(weekStart).map((day) => [day, [] as Task[]]));
 }
 
@@ -193,7 +233,7 @@ function createDemoState(weekStart = getWeekStart()): PlannerState {
   };
 }
 
-function createEmptyState(weekStart = getWeekStart()): PlannerState {
+export function createEmptyState(weekStart = getWeekStart()): PlannerState {
   return {
     version: 3,
     activeWeekStart: weekStart,
@@ -214,14 +254,37 @@ function stateHasMojibake(state: PlannerState) {
   return JSON.stringify(state, (_key, value) => (hasMojibake(value) ? "__BROKEN__" : value)).includes("__BROKEN__");
 }
 
-function normalizeState(state: SavedPlannerState): PlannerState {
+function normalizeSettings(settings: unknown): PlannerSettings {
+  const defaults = defaultSettings();
+  if (!isRecord(settings)) return defaults;
+  const startMode = settings.startMode === "empty" || settings.startMode === "demo" ? settings.startMode : defaults.startMode;
+  const theme = themePresets.some((preset) => preset.id === settings.theme) ? settings.theme as PlannerTheme : defaults.theme;
+  const lastExportAt = typeof settings.lastExportAt === "string" ? settings.lastExportAt : defaults.lastExportAt;
+  return {
+    startMode,
+    weeklyExportReminder: Boolean(settings.weeklyExportReminder ?? defaults.weeklyExportReminder),
+    theme,
+    lastExportAt,
+  };
+}
+
+export function normalizeState(state: SavedPlannerState): PlannerState {
   const weekStart = state.activeWeekStart ?? state.weekStart ?? getWeekStart();
   const rawGoals = state.weeklyGoals;
-  const weeklyGoals = Array.isArray(rawGoals) ? { [weekStart]: rawGoals } : rawGoals ?? { [weekStart]: [] };
+  const weeklyGoals = Array.isArray(rawGoals)
+    ? { [weekStart]: rawGoals.filter(isRecord).map((goal) => ({ id: String(goal.id ?? uid()), title: String(goal.title ?? ""), done: Boolean(goal.done) })) }
+    : Object.fromEntries(
+        Object.entries(isRecord(rawGoals) ? rawGoals : { [weekStart]: [] }).map(([week, goals]) => [
+          week,
+          Array.isArray(goals)
+            ? goals.filter(isRecord).map((goal) => ({ id: String(goal.id ?? uid()), title: String(goal.title ?? ""), done: Boolean(goal.done) }))
+            : [],
+        ]),
+      );
   const tasks = Object.fromEntries(
-    Object.entries(state.tasks ?? createEmptyWeekTasks(weekStart)).map(([day, tasksForDay]) => [
+    Object.entries(isRecord(state.tasks) ? state.tasks : createEmptyWeekTasks(weekStart)).map(([day, tasksForDay]) => [
       day,
-      (tasksForDay ?? []).map((task) => normalizeTask(task)),
+      Array.isArray(tasksForDay) ? tasksForDay.filter(isRecord).map((task) => normalizeTask(task)) : [],
     ]),
   );
   return {
@@ -229,14 +292,39 @@ function normalizeState(state: SavedPlannerState): PlannerState {
     activeWeekStart: weekStart,
     weeklyGoals,
     tasks,
-    habits: state.habits ?? [],
-    dayLogs: state.dayLogs ?? {},
-    settings: { ...defaultSettings(), ...(state.settings ?? {}) },
-    backups: state.backups ?? [],
+    habits: Array.isArray(state.habits)
+      ? state.habits.filter(isRecord).map((habit) => ({
+          id: String(habit.id ?? uid()),
+          title: String(habit.title ?? ""),
+          completions: isRecord(habit.completions) ? Object.fromEntries(Object.entries(habit.completions).map(([day, done]) => [day, Boolean(done)])) : {},
+        }))
+      : [],
+    dayLogs: Object.fromEntries(
+      Object.entries(isRecord(state.dayLogs) ? state.dayLogs : {}).map(([day, log]) => [
+        day,
+        isRecord(log)
+          ? {
+              sleep: boundedNumber(log.sleep, 7, 4, 10),
+              energy: boundedNumber(log.energy, 3, 1, 5),
+              mood: boundedNumber(log.mood, 3, 1, 5),
+              summary: String(log.summary ?? ""),
+            }
+          : defaultLog(),
+      ]),
+    ),
+    settings: normalizeSettings(state.settings),
+    backups: Array.isArray(state.backups)
+      ? state.backups.filter(isRecord).map((backup) => ({
+          id: String(backup.id ?? uid()),
+          createdAt: String(backup.createdAt ?? new Date().toISOString()),
+          label: String(backup.label ?? "Backup"),
+          data: String(backup.data ?? ""),
+        }))
+      : [],
   };
 }
 
-function loadState(): PlannerState {
+function loadLocalState(): PlannerState | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -255,24 +343,48 @@ function loadState(): PlannerState {
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  return createDemoState();
+  return null;
 }
 
-function ensureCurrentWeek(state: PlannerState, weekStart: string): PlannerState {
+async function loadStoredState(): Promise<PlannerState> {
+  const indexedState = await plannerStorage.loadLatestSnapshot();
+  if (indexedState) return indexedState;
+  return loadLocalState() ?? createDemoState();
+}
+
+export function ensureCurrentWeek(state: PlannerState, weekStart: string): PlannerState {
   if (state.activeWeekStart === weekStart && state.weeklyGoals[weekStart]) return state;
   const previousWeekDays = getWeekDays(state.activeWeekStart);
   const nextWeekDays = getWeekDays(weekStart);
   const repeatedTasks = Object.fromEntries(nextWeekDays.map((day) => [day, [] as Task[]]));
+  const dailyRepeats = new Map<string, Task>();
+  const weeklyRepeatKeys = new Set<string>();
   previousWeekDays.forEach((day, dayIndex) => {
     (state.tasks[day] ?? []).forEach((task) => {
       if (task.repeat === "daily") {
-        nextWeekDays.forEach((nextDay) => repeatedTasks[nextDay].push(createTask(task.title, false, { priority: task.priority, repeat: task.repeat })));
+        const key = `${task.title.trim().toLocaleLowerCase()}|${task.priority}`;
+        if (task.title.trim() && !dailyRepeats.has(key)) dailyRepeats.set(key, task);
       }
       if (task.repeat === "weekly" && nextWeekDays[dayIndex]) {
-        repeatedTasks[nextWeekDays[dayIndex]].push(createTask(task.title, false, { priority: task.priority, repeat: task.repeat }));
+        const key = `${dayIndex}|${task.title.trim().toLocaleLowerCase()}|${task.priority}`;
+        if (task.title.trim() && !weeklyRepeatKeys.has(key)) {
+          weeklyRepeatKeys.add(key);
+          repeatedTasks[nextWeekDays[dayIndex]].push(createTask(task.title, false, { priority: task.priority, repeat: task.repeat }));
+        }
       }
     });
   });
+  dailyRepeats.forEach((task) => {
+    nextWeekDays.forEach((nextDay) => repeatedTasks[nextDay].push(createTask(task.title, false, { priority: task.priority, repeat: task.repeat })));
+  });
+  const nextWeekTasks = Object.fromEntries(
+    nextWeekDays.map((day) => {
+      const existing = state.tasks[day] ?? [];
+      const existingKeys = new Set(existing.map((task) => `${task.title.trim().toLocaleLowerCase()}|${task.priority}|${task.repeat}`));
+      const repeats = repeatedTasks[day].filter((task) => !existingKeys.has(`${task.title.trim().toLocaleLowerCase()}|${task.priority}|${task.repeat}`));
+      return [day, [...existing, ...repeats]];
+    }),
+  );
   return {
     ...state,
     activeWeekStart: weekStart,
@@ -280,7 +392,7 @@ function ensureCurrentWeek(state: PlannerState, weekStart: string): PlannerState
       ...state.weeklyGoals,
       [weekStart]: state.weeklyGoals[weekStart] ?? [],
     },
-    tasks: { ...createEmptyWeekTasks(weekStart), ...repeatedTasks, ...state.tasks },
+    tasks: { ...state.tasks, ...createEmptyWeekTasks(weekStart), ...nextWeekTasks },
   };
 }
 
@@ -288,22 +400,109 @@ function percent(done: number, total: number) {
   return total === 0 ? 0 : Math.round((done / total) * 100);
 }
 
-function compactBackup(state: PlannerState, label = "Автобэкап"): PlannerBackup {
+export function getUpcomingTasks(tasks: Record<string, Task[]>, weekDays: string[], limit = 8): DatedTask[] {
+  return Object.entries(tasks)
+    .filter(([day]) => day > weekDays[6])
+    .sort(([first], [second]) => first.localeCompare(second))
+    .flatMap(([day, tasksForDay]) => tasksForDay.map((task) => ({ day, task })))
+    .slice(0, limit);
+}
+
+export function compactBackup(state: PlannerState, label = "Автобэкап"): PlannerBackup {
   const snapshot = { ...state, backups: [] };
   return { id: uid(), createdAt: new Date().toISOString(), label, data: JSON.stringify(snapshot) };
 }
 
-function saveIndexedSnapshot(state: PlannerState) {
-  if (!("indexedDB" in window)) return;
-  const request = indexedDB.open("notplango", 1);
-  request.onupgradeneeded = () => request.result.createObjectStore("snapshots", { keyPath: "id" });
-  request.onsuccess = () => {
-    const db = request.result;
-    const tx = db.transaction("snapshots", "readwrite");
-    tx.objectStore("snapshots").put({ id: "latest", createdAt: new Date().toISOString(), state });
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => db.close();
-  };
+function saveIndexedSnapshot(state: PlannerState): Promise<void> {
+  if (!("indexedDB" in window)) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("notplango", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("snapshots", { keyPath: "id" });
+    request.onerror = () => reject(request.error ?? new Error("IndexedDB open failed"));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction("snapshots", "readwrite");
+      tx.objectStore("snapshots").put({ id: "latest", createdAt: new Date().toISOString(), state });
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error ?? new Error("IndexedDB write failed"));
+      };
+    };
+  });
+}
+
+function loadIndexedSnapshot(): Promise<PlannerState | null> {
+  if (!("indexedDB" in window)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const request = indexedDB.open("notplango", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("snapshots", { keyPath: "id" });
+    request.onerror = () => resolve(null);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction("snapshots", "readonly");
+      const read = tx.objectStore("snapshots").get("latest");
+      read.onerror = () => {
+        db.close();
+        resolve(null);
+      };
+      read.onsuccess = () => {
+        db.close();
+        const snapshot = isRecord(read.result) ? read.result.state : null;
+        if (!isSavedPlannerState(snapshot)) {
+          resolve(null);
+          return;
+        }
+        try {
+          const restored = normalizeState(snapshot);
+          resolve(stateHasMojibake(restored) ? null : restored);
+        } catch {
+          resolve(null);
+        }
+      };
+    };
+  });
+}
+
+function loadAutoBackupCreatedAt() {
+  try {
+    const saved = localStorage.getItem(AUTO_BACKUP_KEY);
+    return saved ? (JSON.parse(saved) as PlannerBackup).createdAt : "";
+  } catch {
+    return "";
+  }
+}
+
+const plannerStorage = {
+  loadState: loadStoredState,
+  loadLatestSnapshot: loadIndexedSnapshot,
+  latestBackupAt: loadAutoBackupCreatedAt,
+  async saveState(state: PlannerState) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const backup = compactBackup(state);
+    localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(backup));
+    await saveIndexedSnapshot(state);
+  },
+  async getStatus(): Promise<StorageStatus> {
+    const estimate = await navigator.storage?.estimate?.().catch(() => undefined);
+    const persisted = await navigator.storage?.persisted?.().catch(() => null);
+    const backupAt = loadAutoBackupCreatedAt();
+    const indexedBackup = await loadIndexedSnapshot();
+    return {
+      usageLabel: estimate?.usage !== undefined ? formatBytes(estimate.usage) : "неизвестно",
+      quotaLabel: estimate?.quota !== undefined ? formatBytes(estimate.quota) : "неизвестно",
+      persisted: persisted ?? null,
+      backupAt,
+      backupAvailable: Boolean(backupAt || indexedBackup),
+    };
+  },
+};
+
+async function getStorageStatus(): Promise<StorageStatus> {
+  return plannerStorage.getStatus();
 }
 
 function ProgressRing({ value, size = 112 }: { value: number; size?: number }) {
@@ -332,25 +531,83 @@ function ProgressRing({ value, size = 112 }: { value: number; size?: number }) {
   );
 }
 
+function useVisualViewportInsets() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+
+    const updateViewportVars = () => {
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const keyboardInset = Math.max(0, window.innerHeight - viewportHeight - viewportTop);
+      root.style.setProperty("--visual-viewport-height", `${viewportHeight}px`);
+      root.style.setProperty("--visual-viewport-offset-top", `${viewportTop}px`);
+      root.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
+    };
+
+    updateViewportVars();
+    window.addEventListener("resize", updateViewportVars);
+    window.addEventListener("orientationchange", updateViewportVars);
+    viewport?.addEventListener("resize", updateViewportVars);
+    viewport?.addEventListener("scroll", updateViewportVars);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportVars);
+      window.removeEventListener("orientationchange", updateViewportVars);
+      viewport?.removeEventListener("resize", updateViewportVars);
+      viewport?.removeEventListener("scroll", updateViewportVars);
+      root.style.removeProperty("--visual-viewport-height");
+      root.style.removeProperty("--visual-viewport-offset-top");
+      root.style.removeProperty("--keyboard-inset");
+    };
+  }, []);
+}
+
 function App() {
-  const [state, setState] = useState<PlannerState>(() => ensureCurrentWeek(loadState(), getWeekStart()));
-  const [tab, setTab] = useState<Tab>("today");
-  const [toast, setToast] = useState("");
-  const [confirmAction, setConfirmAction] = useState<{ title: string; text: string; confirmLabel: string; onConfirm: () => void } | null>(null);
-  const [addSheetOpen, setAddSheetOpen] = useState(false);
-  const importInputRef = useRef<HTMLInputElement>(null);
+  useVisualViewportInsets();
+
   const today = toISO(new Date());
   const weekStart = getWeekStart();
+  const [state, setState] = useState<PlannerState>(() => createDemoState(weekStart));
+  const [appReady, setAppReady] = useState(false);
+  const [tab, setTab] = useState<Tab>("today");
+  const [toast, setToast] = useState("");
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus>({ usageLabel: "неизвестно", quotaLabel: "неизвестно", persisted: null, backupAt: "", backupAvailable: false });
+  const importInputRef = useRef<HTMLInputElement>(null);
   const weekDays = useMemo(() => getWeekDays(state.activeWeekStart), [state.activeWeekStart]);
   const currentGoals = state.weeklyGoals[state.activeWeekStart] ?? [];
 
+  useEffect(() => {
+    let cancelled = false;
+    plannerStorage.loadState()
+      .then((storedState) => {
+        if (cancelled) return;
+        setState(ensureCurrentWeek(storedState, weekStart));
+        setAppReady(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setState(createDemoState(weekStart));
+        setAppReady(true);
+        setToast("Не удалось загрузить данные. Открыт демо-планер.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   useEffect(() => setState((current) => ensureCurrentWeek(current, weekStart)), [weekStart]);
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    const backup = compactBackup(state);
-    localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(backup));
-    saveIndexedSnapshot(state);
-  }, [state]);
+    refreshStorageStatus();
+  }, []);
+  useEffect(() => {
+    if (!appReady) return;
+    plannerStorage
+      .saveState(state)
+      .then(refreshStorageStatus)
+      .catch(() => setToast("Данные не сохранились. Сделайте экспорт JSON."));
+  }, [appReady, state]);
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(""), 2400);
@@ -394,8 +651,10 @@ function App() {
   const overdueTasks = todayIndex <= 0 ? [] : weekDays
     .slice(0, todayIndex)
     .flatMap((day) => (state.tasks[day] ?? []).filter((task) => !task.done).map((task) => ({ day, task })));
-  const askConfirm = (title: string, text: string, confirmLabel: string, onConfirm: () => void) =>
-    setConfirmAction({ title, text, confirmLabel, onConfirm });
+  const upcomingTasks = getUpcomingTasks(state.tasks, weekDays);
+  const askConfirm = (title: string, text: string, confirmLabel: string, onConfirm: () => void, secondary?: { label: string; onClick: () => void }) =>
+    setConfirmAction({ title, text, confirmLabel, onConfirm, secondaryLabel: secondary?.label, onSecondary: secondary?.onClick });
+  const refreshStorageStatus = () => getStorageStatus().then(setStorageStatus).catch(() => undefined);
 
   const addTaskForDay = (day: string, title: string, toastText = "Задача добавлена") => {
     const clean = title.trim();
@@ -544,13 +803,23 @@ function App() {
     link.download = `notplango-${today}.json`;
     link.click();
     URL.revokeObjectURL(url);
+    const exportedAt = new Date().toISOString();
+    updateState((current) => ({ ...current, settings: { ...current.settings, lastExportAt: exportedAt } }));
     setToast("JSON экспортирован");
   };
 
   const importJson = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const parsed = JSON.parse(await file.text()) as SavedPlannerState;
+      if (file.size > MAX_IMPORT_BYTES) {
+        setToast("JSON слишком большой для импорта");
+        return;
+      }
+      const parsed = JSON.parse(await file.text()) as unknown;
+      if (!isSavedPlannerState(parsed)) {
+        setToast("Файл не похож на экспорт NotPlanGo");
+        return;
+      }
       const nextState = normalizeState(parsed);
       setState(ensureCurrentWeek(nextState, weekStart));
       setToast("Данные импортированы");
@@ -559,6 +828,30 @@ function App() {
     } finally {
       if (importInputRef.current) importInputRef.current.value = "";
     }
+  };
+
+  const requestPersistentStorage = async () => {
+    if (!navigator.storage?.persist) {
+      setToast("Браузер не поддерживает защиту хранилища");
+      return;
+    }
+    const persisted = await navigator.storage.persist().catch(() => false);
+    setToast(persisted ? "Хранилище защищено браузером" : "Браузер не дал постоянное хранилище");
+    refreshStorageStatus();
+  };
+
+  const restoreLatestBackup = async () => {
+    const snapshot = await plannerStorage.loadLatestSnapshot();
+    if (!snapshot) {
+      setToast("Локальный бэкап не найден");
+      refreshStorageStatus();
+      return;
+    }
+    askConfirm("Восстановить локальный бэкап?", "Текущее состояние будет заменено последним локальным снимком с этого устройства.", "Восстановить", () => {
+      setState(ensureCurrentWeek(snapshot, weekStart));
+      setToast("Бэкап восстановлен");
+      refreshStorageStatus();
+    });
   };
 
   const screenProps: ScreenProps = {
@@ -573,6 +866,7 @@ function App() {
     weekTaskProgress,
     weekHabitProgress,
     overdueTasks,
+    upcomingTasks,
     addTaskForDay,
     toggleTask,
     deleteTask,
@@ -588,40 +882,56 @@ function App() {
     addHabit,
     renameHabit,
     deleteHabit,
+    storageStatus,
+    refreshStorageStatus,
+    requestPersistentStorage,
+    restoreLatestBackup,
     resetDemo: () => {
       askConfirm("Вернуть демо?", "Текущие данные будут заменены. Перед этим лучше сделать экспорт JSON.", "Вернуть демо", () => {
         setState(createDemoState(weekStart));
         setToast("Демо-данные восстановлены");
-      });
+      }, { label: "Экспорт JSON", onClick: exportJson });
     },
     resetEmpty: () => {
       askConfirm("Начать с пустого планера?", "Все текущие данные будут очищены. Перед этим лучше сделать экспорт JSON.", "Очистить", () => {
         setState(createEmptyState(weekStart));
         setToast("Пустой планер готов");
-      });
+      }, { label: "Экспорт JSON", onClick: exportJson });
     },
     setStartMode: (startMode) => updateState((current) => ({ ...current, settings: { ...current.settings, startMode } })),
+    setTheme: (theme) => updateState((current) => ({ ...current, settings: { ...current.settings, theme } })),
     exportJson,
     importJson,
     importInputRef,
   };
 
   return (
-    <div className="appShell">
+    <div className="appShell" data-theme={state.settings.theme}>
       <main className="phoneFrame">
-        <AnimatePresence mode="wait">
-          <motion.div key={tab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-            {tab === "today" && <TodayScreen {...screenProps} />}
-            {tab === "week" && <WeekScreen {...screenProps} />}
-            {tab === "habits" && <HabitsScreen {...screenProps} />}
-            {tab === "settings" && <SettingsScreen {...screenProps} />}
-          </motion.div>
-        </AnimatePresence>
+        {!appReady ? (
+          <section className="screen">
+            <Header eyebrow="NotPlanGo" title="Загружаем планер" />
+            <article className="card">
+              <EmptyState title="Проверяем локальное хранилище" text="Сначала ищем основной снимок в IndexedDB, затем запасную копию в браузере." />
+            </article>
+          </section>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div key={tab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+              {tab === "today" && <TodayScreen {...screenProps} />}
+              {tab === "week" && <WeekScreen {...screenProps} />}
+              {tab === "habits" && <HabitsScreen {...screenProps} />}
+              {tab === "settings" && <SettingsScreen {...screenProps} />}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </main>
-      <motion.button className="floatingAddButton" whileTap={{ scale: 0.94 }} onClick={() => setAddSheetOpen(true)} aria-label="Добавить задачу">
-        +
-      </motion.button>
-      <BottomNav active={tab} onChange={setTab} />
+      {appReady && (
+        <motion.button className="floatingAddButton" whileTap={{ scale: 0.94 }} onClick={() => setAddSheetOpen(true)} aria-label="Добавить задачу">
+          +
+        </motion.button>
+      )}
+      {appReady && <BottomNav active={tab} onChange={setTab} />}
       <AnimatePresence>{toast && <motion.div className="toast">{toast}</motion.div>}</AnimatePresence>
       <AnimatePresence>
         {addSheetOpen && (
@@ -641,6 +951,9 @@ function App() {
           <ConfirmSheet
             action={confirmAction}
             onCancel={() => setConfirmAction(null)}
+            onSecondary={() => {
+              confirmAction.onSecondary?.();
+            }}
             onConfirm={() => {
               confirmAction.onConfirm();
               setConfirmAction(null);
@@ -663,7 +976,8 @@ type ScreenProps = {
   weekProgress: number;
   weekTaskProgress: number;
   weekHabitProgress: number;
-  overdueTasks: { day: string; task: Task }[];
+  overdueTasks: DatedTask[];
+  upcomingTasks: DatedTask[];
   addTaskForDay: (day: string, title: string, toastText?: string) => void;
   toggleTask: (day: string, id: string) => void;
   deleteTask: (day: string, id: string) => void;
@@ -679,9 +993,14 @@ type ScreenProps = {
   addHabit: (title: string) => void;
   renameHabit: (id: string, title: string) => void;
   deleteHabit: (id: string) => void;
+  storageStatus: StorageStatus;
+  refreshStorageStatus: () => void;
+  requestPersistentStorage: () => void;
+  restoreLatestBackup: () => void;
   resetDemo: () => void;
   resetEmpty: () => void;
   setStartMode: (startMode: PlannerSettings["startMode"]) => void;
+  setTheme: (theme: PlannerTheme) => void;
   exportJson: () => void;
   importJson: (file: File | undefined) => void;
   importInputRef: RefObject<HTMLInputElement | null>;
@@ -883,12 +1202,39 @@ function WeekScreen(props: ScreenProps) {
           onMove={props.moveTask}
         />
       </article>
+      {props.upcomingTasks.length > 0 && (
+        <article className="card upcomingCard">
+          <div className="sectionTitle">
+            <h2>Ближайшие планы</h2>
+            <span>{props.upcomingTasks.length}</span>
+          </div>
+          <p className="cardHint">Задачи на даты после текущей недели остаются здесь, пока не наступит их неделя.</p>
+          <div className="taskList">
+            {props.upcomingTasks.map(({ day, task }) => (
+              <div className="overdueItem" key={`${day}-${task.id}`}>
+                <div>
+                  <strong>{task.title}</strong>
+                  <span>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", weekday: "short" }).format(parseISO(day))}</span>
+                </div>
+                <div className="overdueActions">
+                  <button onClick={() => props.moveTask(day, task.id, props.today)}>Сегодня</button>
+                  <button onClick={() => props.toggleTask(day, task.id)}>Готово</button>
+                  <button className="plainDanger" onClick={() => props.deleteTask(day, task.id)}>×</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      )}
       <article className="card ritualCard">
         <div className="sectionTitle">
           <h2>Ритуал недели</h2>
           <span>JSON</span>
         </div>
         <p>В конце недели сделайте ручной экспорт, чтобы данные не зависели только от браузера.</p>
+        <p className="backupNote">
+          {props.state.settings.lastExportAt ? `Последний ручной экспорт: ${new Date(props.state.settings.lastExportAt).toLocaleString("ru-RU")}` : "Ручной экспорт еще не делали."}
+        </p>
         <button onClick={props.exportJson}>Экспорт JSON</button>
       </article>
       <article className="card">
@@ -959,17 +1305,33 @@ function SettingsScreen(props: ScreenProps) {
     : [];
   const logs = props.weekDays.map((day) => props.state.dayLogs[day] ?? defaultLog());
   const avg = (values: number[]) => values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : "0";
-  const lastBackup = (() => {
-    try {
-      const saved = localStorage.getItem(AUTO_BACKUP_KEY);
-      return saved ? (JSON.parse(saved) as PlannerBackup).createdAt : "";
-    } catch {
-      return "";
-    }
-  })();
+  const lastBackup = plannerStorage.latestBackupAt();
   return (
     <section className="screen">
       <Header eyebrow="управление" title="Настройки" />
+      <article className="card themeCard">
+        <div className="sectionTitle">
+          <h2>Цветовая гамма</h2>
+          <span>{themePresets.find((preset) => preset.id === props.state.settings.theme)?.title ?? "Олива"}</span>
+        </div>
+        <div className="themeGrid">
+          {themePresets.map((preset) => (
+            <button
+              type="button"
+              className={preset.id === props.state.settings.theme ? "active" : ""}
+              onClick={() => props.setTheme(preset.id)}
+              key={preset.id}
+              aria-label={`Выбрать тему ${preset.title}`}
+            >
+              <span className="themeSwatches" aria-hidden="true">
+                {preset.swatches.map((color) => <i style={{ background: color }} key={color} />)}
+              </span>
+              <strong>{preset.title}</strong>
+              <em>{preset.hint}</em>
+            </button>
+          ))}
+        </div>
+      </article>
       <article className="card">
         <div className="sectionTitle"><h2>Привычки</h2></div>
         <form
@@ -1029,12 +1391,35 @@ function SettingsScreen(props: ScreenProps) {
           <div><span>Привычки</span><strong>{props.weekHabitProgress}%</strong></div>
         </div>
       </article>
+      <article className="card storageCard">
+        <div className="sectionTitle">
+          <h2>Хранилище</h2>
+          <span>{props.storageStatus.persisted ? "защищено" : "локально"}</span>
+        </div>
+        <div className="storageGrid">
+          <div><span>Занято</span><strong>{props.storageStatus.usageLabel}</strong></div>
+          <div><span>Лимит</span><strong>{props.storageStatus.quotaLabel}</strong></div>
+          <div><span>Защита</span><strong>{props.storageStatus.persisted === null ? "неизвестно" : props.storageStatus.persisted ? "включена" : "обычная"}</strong></div>
+          <div><span>Бэкап</span><strong>{props.storageStatus.backupAvailable ? "есть" : "нет"}</strong></div>
+        </div>
+        <p className="backupNote">
+          {props.storageStatus.backupAt ? `Последний бэкап: ${new Date(props.storageStatus.backupAt).toLocaleString("ru-RU")}` : "Локальный бэкап появится после первого сохранения."}
+        </p>
+        <div className="storageActions">
+          <button className="secondaryButton" onClick={props.refreshStorageStatus}>Обновить статус</button>
+          <button className="secondaryButton" onClick={props.requestPersistentStorage}>Защитить хранение</button>
+          <button className="secondaryButton" onClick={props.restoreLatestBackup}>Восстановить бэкап</button>
+        </div>
+      </article>
       <article className="card actionsCard">
         <div className="sectionTitle"><h2>Данные</h2></div>
         <button onClick={props.exportJson}>Экспорт JSON</button>
         <button className="secondaryButton" onClick={() => props.importInputRef.current?.click()}>Импорт JSON</button>
         <input ref={props.importInputRef} className="hiddenFileInput" type="file" accept="application/json,.json" onChange={(event) => props.importJson(event.target.files?.[0])} />
-        <p className="backupNote">{lastBackup ? `Автобэкап: ${new Date(lastBackup).toLocaleString("ru-RU")}` : "Автобэкап появится после первого сохранения."}</p>
+        <p className="backupNote">
+          {props.state.settings.lastExportAt ? `Ручной экспорт: ${new Date(props.state.settings.lastExportAt).toLocaleString("ru-RU")}` : "Ручной экспорт еще не делали."}
+        </p>
+        <p className="backupNote">{lastBackup ? `Автобэкап JSON: ${new Date(lastBackup).toLocaleString("ru-RU")}` : "Автобэкап JSON появится после первого сохранения."}</p>
         <button className="secondaryButton dangerButton" onClick={props.resetDemo}>Очистить и вернуть демо</button>
       </article>
     </section>
@@ -1112,10 +1497,12 @@ function TaskList({
 function ConfirmSheet({
   action,
   onCancel,
+  onSecondary,
   onConfirm,
 }: {
-  action: { title: string; text: string; confirmLabel: string };
+  action: ConfirmAction;
   onCancel: () => void;
+  onSecondary: () => void;
   onConfirm: () => void;
 }) {
   return (
@@ -1125,6 +1512,7 @@ function ConfirmSheet({
         <p>{action.text}</p>
         <div>
           <button className="secondaryButton" onClick={onCancel}>Отмена</button>
+          {action.secondaryLabel && <button className="secondaryButton" onClick={onSecondary}>{action.secondaryLabel}</button>}
           <button className="dangerButton" onClick={onConfirm}>{action.confirmLabel}</button>
         </div>
       </motion.div>
@@ -1227,11 +1615,13 @@ function BottomNav({ active, onChange }: { active: Tab; onChange: (tab: Tab) => 
   );
 }
 
-const rootNode = document.getElementById("root")!;
-const root = globalThis.notPlanGoRoot ?? createRoot(rootNode);
-globalThis.notPlanGoRoot = root;
-root.render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const rootNode = typeof document === "undefined" ? null : document.getElementById("root");
+if (rootNode) {
+  const root = globalThis.notPlanGoRoot ?? createRoot(rootNode);
+  globalThis.notPlanGoRoot = root;
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
