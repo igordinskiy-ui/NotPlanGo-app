@@ -13,6 +13,7 @@ import {
   isSavedPlannerState,
   moveUnfinishedTasksToDay,
   normalizeState,
+  searchPlannerState,
   themePresets,
 } from "./main";
 
@@ -129,6 +130,32 @@ describe("theme presets", () => {
       expect(getThemeColor(preset.id)).toBe(preset.swatches[1]);
       expect(getThemeColor(preset.id)).toMatch(/^#[0-9a-f]{6}$/i);
     });
+  });
+});
+
+describe("global search", () => {
+  it("finds tasks, goals, summaries, and habits across stored planner data", () => {
+    const state = createEmptyState("2026-07-06");
+    state.tasks["2026-07-07"] = [createTask("Pay clinic invoice")];
+    state.tasks["2026-08-01"] = [createTask("Book clinic visit")];
+    state.weeklyGoals["2026-07-06"] = [{ id: "goal-1", title: "Choose clinic schedule", done: false }];
+    state.dayLogs["2026-07-08"] = { sleep: 7, energy: 3, mood: 4, summary: "Called the clinic and confirmed details" };
+    state.habits = [{ id: "habit-1", title: "Clinic rehab walk", completions: {} }];
+
+    const results = searchPlannerState(state, "clinic");
+
+    expect(results.map((result) => result.kind)).toEqual(["task", "task", "goal", "summary", "habit"]);
+    expect(results.map((result) => result.title)).toEqual([
+      "Pay clinic invoice",
+      "Book clinic visit",
+      "Choose clinic schedule",
+      "Called the clinic and confirmed details",
+      "Clinic rehab walk",
+    ]);
+  });
+
+  it("returns an empty result for blank queries", () => {
+    expect(searchPlannerState(createEmptyState("2026-07-06"), "   ")).toEqual([]);
   });
 });
 

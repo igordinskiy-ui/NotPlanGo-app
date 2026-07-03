@@ -17,6 +17,7 @@ type PlannerSettings = { startMode: "demo" | "empty"; weeklyExportReminder: bool
 type PlannerBackup = { id: string; createdAt: string; label: string; data: string };
 type StorageStatus = { usageLabel: string; quotaLabel: string; persisted: boolean | null; backupAt: string; backupAvailable: boolean };
 type DatedTask = { day: string; task: Task };
+type SearchResult = { id: string; kind: "task" | "goal" | "summary" | "habit"; title: string; meta: string };
 type ConfirmAction = { title: string; text: string; confirmLabel: string; onConfirm: () => void; secondaryLabel?: string; onSecondary?: () => void };
 
 export type PlannerState = {
@@ -440,6 +441,36 @@ export function moveUnfinishedTasksToDay(state: PlannerState, sourceDays: string
     },
     moved: movedTasks.length,
   };
+}
+
+export function searchPlannerState(state: PlannerState, query: string, limit = 12): SearchResult[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (!needle) return [];
+
+  const matches = (value: string) => value.toLocaleLowerCase().includes(needle);
+  const taskResults = Object.entries(state.tasks)
+    .sort(([first], [second]) => first.localeCompare(second))
+    .flatMap(([day, tasksForDay]) =>
+      tasksForDay
+        .filter((task) => matches(task.title))
+        .map((task) => ({ id: `task-${day}-${task.id}`, kind: "task" as const, title: task.title, meta: `Задача · ${day}` })),
+    );
+  const goalResults = Object.entries(state.weeklyGoals)
+    .sort(([first], [second]) => first.localeCompare(second))
+    .flatMap(([week, goals]) =>
+      goals
+        .filter((goal) => matches(goal.title))
+        .map((goal) => ({ id: `goal-${week}-${goal.id}`, kind: "goal" as const, title: goal.title, meta: `Цель · неделя ${week}` })),
+    );
+  const summaryResults = Object.entries(state.dayLogs)
+    .sort(([first], [second]) => first.localeCompare(second))
+    .filter(([, log]) => log.summary.trim() && matches(log.summary))
+    .map(([day, log]) => ({ id: `summary-${day}`, kind: "summary" as const, title: log.summary, meta: `Итог дня · ${day}` }));
+  const habitResults = state.habits
+    .filter((habit) => matches(habit.title))
+    .map((habit) => ({ id: `habit-${habit.id}`, kind: "habit" as const, title: habit.title, meta: "Привычка" }));
+
+  return [...taskResults, ...goalResults, ...summaryResults, ...habitResults].slice(0, limit);
 }
 
 export function compactBackup(state: PlannerState, label = "Автобэкап"): PlannerBackup {
@@ -1455,10 +1486,7 @@ function HabitsScreen(props: ScreenProps) {
 function SettingsScreen(props: ScreenProps) {
   const [habitTitle, setHabitTitle] = useState("");
   const [query, setQuery] = useState("");
-  const allTasks = props.weekDays.flatMap((day) => (props.state.tasks[day] ?? []).map((task) => ({ day, task })));
-  const searchResults = query.trim()
-    ? allTasks.filter(({ task }) => task.title.toLowerCase().includes(query.trim().toLowerCase()))
-    : [];
+  const searchResults = searchPlannerState(props.state, query);
   const logs = props.weekDays.map((day) => props.state.dayLogs[day] ?? defaultLog());
   const avg = (values: number[]) => values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : "0";
   const lastBackup = plannerStorage.latestBackupAt();
@@ -1524,15 +1552,15 @@ function SettingsScreen(props: ScreenProps) {
       </article>
       <article className="card">
         <div className="sectionTitle"><h2>Поиск</h2></div>
-        <input className="searchInput" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти задачу" />
+        <input className="searchInput" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти задачу, цель или заметку" />
         <div className="searchResults">
           {query.trim() && searchResults.length === 0 ? (
-            <EmptyState title="Ничего не найдено" text="Попробуйте другое слово из задачи." />
+            <EmptyState title="Ничего не найдено" text="Попробуйте другое слово из задачи, цели или итога дня." />
           ) : (
-            searchResults.slice(0, 8).map(({ day, task }) => (
-              <div key={`${day}-${task.id}`}>
-                <span>{task.title}</span>
-                <strong>{day}</strong>
+            searchResults.map((result) => (
+              <div key={result.id}>
+                <span>{result.title}</span>
+                <strong>{result.meta}</strong>
               </div>
             ))
           )}
