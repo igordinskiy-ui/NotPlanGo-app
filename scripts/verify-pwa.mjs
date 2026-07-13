@@ -66,6 +66,9 @@ assert(sw.includes("cleanupOutdatedCaches()"), "service worker Workbox cache cle
 assert(sw.includes("createHandlerBoundToURL(\"/index.html\")"), "service worker offline navigation fallback missing");
 assert(sw.includes("caches.delete(\"notplango-v3\")"), "service worker old cache migration missing");
 assert(sw.includes('self.addEventListener("activate"'), "service worker activate handler missing");
+assert(sw.includes('self.addEventListener("message"'), "service worker update message handler missing");
+assert(sw.includes('event.data?.type === "SKIP_WAITING"'), "service worker must accept explicit update activation");
+assert(sw.includes("self.skipWaiting()"), "service worker explicit update activation missing");
 assert(sw.includes('self.addEventListener("notificationclick"'), "service worker notificationclick handler missing");
 assert(sw.includes('event.action === "snooze"'), "service worker notification snooze action missing");
 assert(sw.includes("action=snooze-reminders"), "service worker notification snooze deep link missing");

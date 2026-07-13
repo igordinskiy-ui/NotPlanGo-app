@@ -47,6 +47,7 @@ type BeforeInstallPromptEvent = Event & {
 type PlannerDeepLink = { tab: Tab; focus: "summary" | ""; action: "snooze-reminders" | "" };
 type PlannerNotificationAction = { action: string; title: string };
 type ServiceWorkerNotificationOptions = NotificationOptions & { actions?: PlannerNotificationAction[] };
+type MovingTask = { fromDay: string; id: string; title: string };
 
 export type PlannerState = {
   version: 3;
@@ -344,14 +345,16 @@ function defaultSettings(): PlannerSettings {
 
 export function createTask(title: string, done = false, patch: Partial<Task> = {}): Task {
   const now = new Date().toISOString();
+  const priority: TaskPriority = patch.priority === "low" || patch.priority === "high" ? patch.priority : "normal";
+  const repeat: TaskRepeat = patch.repeat === "daily" || patch.repeat === "weekly" ? patch.repeat : "none";
   return {
     id: patch.id ?? uid(),
     title,
     done,
-    priority: patch.priority ?? "normal",
-    repeat: patch.repeat ?? "none",
-    createdAt: patch.createdAt ?? now,
-    updatedAt: now,
+    priority,
+    repeat,
+    createdAt: typeof patch.createdAt === "string" ? patch.createdAt : now,
+    updatedAt: typeof patch.updatedAt === "string" ? patch.updatedAt : now,
   };
 }
 
@@ -662,6 +665,34 @@ export function moveUnfinishedTasksToDay(state: PlannerState, sourceDays: string
   };
 }
 
+export function updateTaskMetadata(state: PlannerState, day: string, id: string, patch: Partial<Pick<Task, "priority" | "repeat">>, now = new Date().toISOString()) {
+  const task = (state.tasks[day] ?? []).find((item) => item.id === id);
+  if (!task) return state;
+
+  const priority: TaskPriority = patch.priority === "low" || patch.priority === "high" ? patch.priority : task.priority;
+  const repeat: TaskRepeat = patch.repeat === "daily" || patch.repeat === "weekly" || patch.repeat === "none" ? patch.repeat : task.repeat;
+  const updatedTask = { ...task, priority, repeat, updatedAt: now };
+  const tasks = {
+    ...state.tasks,
+    [day]: (state.tasks[day] ?? []).map((item) => (item.id === id ? updatedTask : item)),
+  };
+
+  if (repeat !== "daily" || task.repeat === "daily" || !task.title.trim()) return { ...state, tasks };
+
+  const taskKey = `${task.title.trim().toLocaleLowerCase()}|${priority}|daily`;
+  getWeekDays(getWeekStart(parseISO(day)))
+    .filter((targetDay) => targetDay > day)
+    .forEach((targetDay) => {
+      const targetTasks = tasks[targetDay] ?? [];
+      const hasDailyCopy = targetTasks.some((item) => `${item.title.trim().toLocaleLowerCase()}|${item.priority}|${item.repeat}` === taskKey);
+      if (!hasDailyCopy) {
+        tasks[targetDay] = [...targetTasks, createTask(task.title, false, { priority, repeat: "daily" })];
+      }
+    });
+
+  return { ...state, tasks };
+}
+
 export function searchPlannerState(state: PlannerState, query: string, limit = 12): SearchResult[] {
   const needle = query.trim().toLocaleLowerCase();
   if (!needle) return [];
@@ -963,13 +994,16 @@ function App() {
   const [toast, setToast] = useState("");
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [movingTask, setMovingTask] = useState<MovingTask | null>(null);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>({ usageLabel: "неизвестно", quotaLabel: "неизвестно", persisted: null, backupAt: "", backupAvailable: false });
   const [notificationPermission, setNotificationPermission] = useState<PlannerNotificationPermission>("unsupported");
   const [pwaStatus, setPwaStatus] = useState<PwaRuntimeStatus>(() => getPwaRuntimeStatus());
+  const [updateWorker, setUpdateWorker] = useState<ServiceWorker | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const installPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const [installPromptAvailable, setInstallPromptAvailable] = useState(false);
   const deepLinkHandledRef = useRef(false);
+  const updateRequestedRef = useRef(false);
   const [deepLinkFocus, setDeepLinkFocus] = useState<PlannerDeepLink["focus"]>("");
   const [viewWeekStart, setViewWeekStart] = useState(weekStart);
   const currentWeekDays = useMemo(() => getWeekDays(state.activeWeekStart), [state.activeWeekStart]);
@@ -1195,21 +1229,42 @@ function App() {
       return;
     }
     if (import.meta.env.PROD && "serviceWorker" in navigator) {
+      let removeControllerChange: (() => void) | undefined;
+      let disposed = false;
       navigator.serviceWorker
         .register("/sw.js")
         .then((registration) => {
-          const showUpdate = () => setToast("Доступна новая версия. Закройте и откройте приложение.");
-          if (registration.waiting) showUpdate();
+          if (disposed) return;
+          const showUpdate = (worker: ServiceWorker | null) => {
+            if (!worker) return;
+            setUpdateWorker(worker);
+          };
+          const handleControllerChange = () => {
+            if (updateRequestedRef.current) window.location.reload();
+          };
+          if (registration.waiting) showUpdate(registration.waiting);
           registration.addEventListener("updatefound", () => {
             const worker = registration.installing;
             worker?.addEventListener("statechange", () => {
-              if (worker.state === "installed" && navigator.serviceWorker.controller) showUpdate();
+              if (worker.state === "installed" && navigator.serviceWorker.controller) showUpdate(worker);
             });
           });
+          navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+          removeControllerChange = () => navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
         })
         .catch(() => undefined);
+      return () => {
+        disposed = true;
+        removeControllerChange?.();
+      };
     }
   }, []);
+
+  const applyPwaUpdate = () => {
+    if (!updateWorker) return;
+    updateRequestedRef.current = true;
+    updateWorker.postMessage({ type: "SKIP_WAITING" });
+  };
 
   const updateState = (updater: (draft: PlannerState) => PlannerState) => setState((current) => updater(current));
   const todayTasks = state.tasks[today] ?? [];
@@ -1249,11 +1304,19 @@ function App() {
   };
 
   const deleteTask = (day: string, id: string) => {
-    updateState((current) => ({
-      ...current,
-      tasks: { ...current.tasks, [day]: (current.tasks[day] ?? []).filter((task) => task.id !== id) },
-    }));
-    setToast("Задача удалена");
+    const taskTitle = state.tasks[day]?.find((task) => task.id === id)?.title.trim() || "эта задача";
+    askConfirm(
+      "Удалить задачу?",
+      `«${taskTitle}» будет удалена из плана. Это действие нельзя отменить.`,
+      "Удалить",
+      () => {
+        updateState((current) => ({
+          ...current,
+          tasks: { ...current.tasks, [day]: (current.tasks[day] ?? []).filter((task) => task.id !== id) },
+        }));
+        setToast("Задача удалена");
+      },
+    );
   };
 
   const renameTask = (day: string, id: string, title: string) => {
@@ -1267,13 +1330,7 @@ function App() {
   };
 
   const updateTaskMeta = (day: string, id: string, patch: Partial<Pick<Task, "priority" | "repeat">>) => {
-    updateState((current) => ({
-      ...current,
-      tasks: {
-        ...current.tasks,
-        [day]: (current.tasks[day] ?? []).map((task) => (task.id === id ? { ...task, ...patch, updatedAt: new Date().toISOString() } : task)),
-      },
-    }));
+    updateState((current) => updateTaskMetadata(current, day, id, patch));
   };
 
   const moveTask = (fromDay: string, id: string, toDay: string) => {
@@ -1609,6 +1666,7 @@ function App() {
     renameTask,
     updateTaskMeta,
     moveTask,
+    requestMoveTask: (fromDay, id, title) => setMovingTask({ fromDay, id, title }),
     moveViewedWeekUnfinishedToToday,
     addGoal,
     toggleGoal,
@@ -1702,6 +1760,14 @@ function App() {
       {appReady && !needsOnboarding && <BottomNav active={tab} onChange={setTab} />}
       <AnimatePresence>{toast && <motion.div className="toast">{toast}</motion.div>}</AnimatePresence>
       <AnimatePresence>
+        {updateWorker && (
+          <PwaUpdateSheet
+            onLater={() => setUpdateWorker(null)}
+            onUpdate={applyPwaUpdate}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
         {addSheetOpen && (
           <AddTaskSheet
             today={today}
@@ -1710,6 +1776,19 @@ function App() {
               const label = day === today ? "Задача добавлена на сегодня" : day === addDays(today, 1) ? "Запланировано на завтра" : "Задача запланирована";
               addTaskForDay(day, title, label);
               setAddSheetOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {movingTask && (
+          <MoveTaskSheet
+            task={movingTask}
+            today={today}
+            onCancel={() => setMovingTask(null)}
+            onMove={(targetDay) => {
+              moveTask(movingTask.fromDay, movingTask.id, targetDay);
+              setMovingTask(null);
             }}
           />
         )}
@@ -1755,6 +1834,7 @@ type ScreenProps = {
   renameTask: (day: string, id: string, title: string) => void;
   updateTaskMeta: (day: string, id: string, patch: Partial<Pick<Task, "priority" | "repeat">>) => void;
   moveTask: (fromDay: string, id: string, toDay: string) => void;
+  requestMoveTask: (fromDay: string, id: string, title: string) => void;
   moveViewedWeekUnfinishedToToday: () => void;
   addGoal: (title: string, weekStart?: string) => void;
   toggleGoal: (id: string, weekStart?: string) => void;
@@ -1862,12 +1942,11 @@ function TodayScreen(props: ScreenProps) {
         <TaskList
           day={props.today}
           tasks={props.todayTasks}
-          weekDays={props.weekDays}
           onToggle={props.toggleTask}
           onDelete={props.deleteTask}
           onRename={props.renameTask}
           onMeta={props.updateTaskMeta}
-          onMove={props.moveTask}
+          onMoveRequest={props.requestMoveTask}
         />
       </article>
       {props.overdueTasks.length > 0 && (
@@ -2043,12 +2122,11 @@ function WeekScreen(props: ScreenProps) {
         <TaskList
           day={selectedDay}
           tasks={selectedDayTasks}
-          weekDays={props.weekDays}
           onToggle={props.toggleTask}
           onDelete={props.deleteTask}
           onRename={props.renameTask}
           onMeta={props.updateTaskMeta}
-          onMove={props.moveTask}
+          onMoveRequest={props.requestMoveTask}
         />
       </article>
       {props.upcomingTasks.length > 0 && (
@@ -2391,21 +2469,19 @@ function SettingsScreen(props: ScreenProps) {
 function TaskList({
   day,
   tasks,
-  weekDays,
   onToggle,
   onDelete,
   onRename,
   onMeta,
-  onMove,
+  onMoveRequest,
 }: {
   day: string;
   tasks: Task[];
-  weekDays: string[];
   onToggle: (day: string, id: string) => void;
   onDelete: (day: string, id: string) => void;
   onRename: (day: string, id: string, title: string) => void;
   onMeta: (day: string, id: string, patch: Partial<Pick<Task, "priority" | "repeat">>) => void;
-  onMove: (fromDay: string, id: string, toDay: string) => void;
+  onMoveRequest: (fromDay: string, id: string, title: string) => void;
 }) {
   if (tasks.length === 0) return <EmptyState title="Задач пока нет" text="Добавьте одну понятную задачу." />;
   return (
@@ -2433,19 +2509,9 @@ function TaskList({
                 >
                   {repeatOptions.find((option) => option.value === task.repeat)?.label}
                 </button>
-              </div>
-              <div className="dayMoveRail" aria-label="Перенести задачу">
-                {weekDays.map((weekDay, index) => (
-                  <button
-                    type="button"
-                    className={weekDay === day ? "active" : ""}
-                    onClick={() => onMove(day, task.id, weekDay)}
-                    key={weekDay}
-                    aria-label={`Перенести на ${dayNames[index]}`}
-                  >
-                    {dayNames[index]}
-                  </button>
-                ))}
+                <button type="button" className="metaChip taskMoveButton" onClick={() => onMoveRequest(day, task.id, task.title)}>
+                  Перенести
+                </button>
               </div>
             </div>
             <button className="deleteButton" onClick={() => onDelete(day, task.id)} aria-label={`Удалить ${task.title}`}>×</button>
@@ -2478,6 +2544,64 @@ function ConfirmSheet({
           <button className="dangerButton" onClick={onConfirm}>{action.confirmLabel}</button>
         </div>
       </motion.div>
+    </motion.div>
+  );
+}
+
+function PwaUpdateSheet({ onLater, onUpdate }: { onLater: () => void; onUpdate: () => void }) {
+  return (
+    <motion.div className="confirmOverlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="presentation">
+      <motion.section className="confirmSheet updateSheet" initial={{ y: 32 }} animate={{ y: 0 }} exit={{ y: 32 }} role="dialog" aria-modal="true" aria-labelledby="update-title">
+        <span className="updateEyebrow">NotPlanGo обновлен</span>
+        <h2 id="update-title">Готова новая версия</h2>
+        <p>Обновите приложение, когда закончите текущую запись. Данные планера останутся на устройстве.</p>
+        <div>
+          <button className="secondaryButton" type="button" onClick={onLater}>Позже</button>
+          <button className="primarySheetButton" type="button" onClick={onUpdate}>Обновить</button>
+        </div>
+      </motion.section>
+    </motion.div>
+  );
+}
+
+function MoveTaskSheet({ task, today, onCancel, onMove }: { task: MovingTask; today: string; onCancel: () => void; onMove: (day: string) => void }) {
+  const [mode, setMode] = useState<"today" | "tomorrow" | "custom">("tomorrow");
+  const [customDate, setCustomDate] = useState(addDays(today, 2));
+  const tomorrow = addDays(today, 1);
+  const selectedDate = mode === "today" ? today : mode === "tomorrow" ? tomorrow : customDate;
+  const selectedDateLabel = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", weekday: "short" }).format(parseISO(selectedDate));
+  const isSameDay = task.fromDay === selectedDate;
+
+  return (
+    <motion.div className="sheetOverlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.section className="addTaskSheet moveTaskSheet" initial={{ y: 42 }} animate={{ y: 0 }} exit={{ y: 42 }} role="dialog" aria-modal="true" aria-labelledby="move-task-title">
+        <div className="sheetHandle" />
+        <div className="sheetTopline">
+          <div>
+            <span>Перенос задачи</span>
+            <h2 id="move-task-title">{task.title || "Без названия"}</h2>
+          </div>
+          <button className="sheetClose" type="button" onClick={onCancel} aria-label="Закрыть">×</button>
+        </div>
+        <div className="dateQuickPick" aria-label="Дата переноса">
+          <button type="button" className={mode === "today" ? "active" : ""} onClick={() => setMode("today")}>Сегодня</button>
+          <button type="button" className={mode === "tomorrow" ? "active" : ""} onClick={() => setMode("tomorrow")}>Завтра</button>
+          <button type="button" className={mode === "custom" ? "active" : ""} onClick={() => setMode("custom")}>Календарь</button>
+        </div>
+        {mode === "custom" && (
+          <label className="dateField">
+            <span>Дата</span>
+            <input type="date" min={today} value={customDate} onChange={(event) => setCustomDate(event.target.value || today)} />
+          </label>
+        )}
+        <div className="selectedDateLine">
+          <span>Перенести на</span>
+          <strong>{selectedDateLabel}</strong>
+        </div>
+        <button type="button" className="primarySheetButton" disabled={isSameDay} onClick={() => onMove(selectedDate)}>
+          {isSameDay ? "Задача уже в этом дне" : "Перенести задачу"}
+        </button>
+      </motion.section>
     </motion.div>
   );
 }

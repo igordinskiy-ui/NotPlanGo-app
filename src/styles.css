@@ -586,28 +586,9 @@ textarea:focus {
   color: var(--app-accent-strong);
 }
 
-.dayMoveRail {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
-  border-radius: 10px;
+.taskMoveButton {
   background: var(--app-card-soft);
-}
-
-.dayMoveRail button {
-  min-height: 28px;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--app-muted);
-  font-size: 0.68rem;
-  font-weight: 900;
-}
-
-.dayMoveRail button.active {
-  background: var(--app-surface-solid);
   color: var(--app-accent-strong);
-  box-shadow: 0 1px 8px var(--app-shadow);
 }
 
 .overdueCard {
@@ -854,8 +835,8 @@ textarea:focus {
   margin-top: 8px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: #f3f0e8;
-  color: #6a644e;
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
   font-weight: 800;
 }
 
@@ -1413,13 +1394,33 @@ textarea {
 
 .confirmSheet p {
   margin: 0 0 14px;
-  color: #6f6a5c;
+  color: var(--app-muted);
   line-height: 1.35;
 }
 
 .confirmSheet div {
   display: grid;
   gap: 8px;
+}
+
+.updateSheet {
+  border-color: color-mix(in srgb, var(--app-accent) 38%, var(--app-border));
+}
+
+.updateEyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--app-accent-strong);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.updateSheet .primarySheetButton {
+  min-height: 48px;
+  border-radius: 8px;
+  background: var(--app-accent);
+  color: #fff;
+  font-weight: 900;
 }
 
 .confirmSheet button,
@@ -1454,12 +1455,17 @@ textarea {
   padding: 10px 14px 14px;
 }
 
+.moveTaskSheet {
+  display: grid;
+  gap: 12px;
+}
+
 .sheetHandle {
   width: 42px;
   height: 4px;
   margin: 0 auto 12px;
   border-radius: 999px;
-  background: #ded5c4;
+  background: var(--app-border);
 }
 
 .sheetClose {

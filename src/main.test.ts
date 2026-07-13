@@ -34,9 +34,24 @@ import {
   snoozeRemindersForDate,
   themePresets,
   toggleReminderDay,
+  updateTaskMetadata,
 } from "./main";
 
 describe("planner week rollover", () => {
+  it("normalizes imported task metadata and preserves task timestamps", () => {
+    const task = createTask("Imported", false, {
+      priority: "unexpected" as never,
+      repeat: "monthly" as never,
+      createdAt: "2026-07-01T08:00:00.000Z",
+      updatedAt: "2026-07-02T09:00:00.000Z",
+    });
+
+    expect(task.priority).toBe("normal");
+    expect(task.repeat).toBe("none");
+    expect(task.createdAt).toBe("2026-07-01T08:00:00.000Z");
+    expect(task.updatedAt).toBe("2026-07-02T09:00:00.000Z");
+  });
+
   it("creates one daily repeated task per next-week day instead of multiplying duplicates", () => {
     const weekStart = "2026-06-29";
     const nextWeekStart = "2026-07-06";
@@ -58,6 +73,22 @@ describe("planner week rollover", () => {
       expect(dailyCopies[0].done).toBe(false);
       expect(dailyCopies[0].repeat).toBe("daily");
     });
+  });
+
+  it("schedules a newly daily task for the remaining days of its current week", () => {
+    const weekStart = "2026-07-06";
+    const days = getWeekDays(weekStart);
+    const state = createEmptyState(weekStart);
+    const task = createTask("Walk", false, { priority: "high" });
+    state.tasks[days[2]] = [task];
+    state.tasks[days[4]] = [createTask("Walk", false, { priority: "high", repeat: "daily" })];
+
+    const next = updateTaskMetadata(state, days[2], task.id, { repeat: "daily" }, "2026-07-08T10:00:00.000Z");
+
+    expect(next.tasks[days[2]][0]).toMatchObject({ repeat: "daily", updatedAt: "2026-07-08T10:00:00.000Z" });
+    expect(next.tasks[days[3]].map((item) => item.title)).toEqual(["Walk"]);
+    expect(next.tasks[days[4]].filter((item) => item.title === "Walk")).toHaveLength(1);
+    expect(next.tasks[days[6]].map((item) => item.title)).toEqual(["Walk"]);
   });
 
   it("keeps tasks that were already planned in the next week", () => {
