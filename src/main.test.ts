@@ -20,6 +20,8 @@ import {
   getPwaInstallActionCopy,
   getPwaReadinessItems,
   getReminderLastDateAfterEnable,
+  getReminderLastDateAfterTimeChange,
+  getReminderScheduleCopy,
   isSavedPlannerState,
   isReminderTime,
   moveUnfinishedTasksToDay,
@@ -192,6 +194,13 @@ describe("notification reminders", () => {
     expect(toggleReminderDay([1], 3)).toEqual([1, 3]);
   });
 
+  it("describes selected reminder weekdays", () => {
+    expect(getReminderScheduleCopy([1, 2, 3, 4, 5, 6, 7])).toBe("каждый день");
+    expect(getReminderScheduleCopy([1, 2, 3, 4, 5])).toBe("по будням");
+    expect(getReminderScheduleCopy([6, 7])).toBe("по выходным");
+    expect(getReminderScheduleCopy([1, 3, 5])).toBe("Пн, Ср, Пт");
+  });
+
   it("summarizes the next active reminder", () => {
     const state = createEmptyState("2026-07-06");
     state.settings.remindersEnabled = true;
@@ -218,6 +227,14 @@ describe("notification reminders", () => {
   it("prevents an immediate duplicate reminder when enabling after reminder time", () => {
     expect(getReminderLastDateAfterEnable(new Date("2026-07-06T08:30:00"), "09:00")).toBe("");
     expect(getReminderLastDateAfterEnable(new Date("2026-07-06T09:30:00"), "09:00")).toBe("2026-07-06");
+  });
+
+  it("allows same-day rescheduling when time moves into the future", () => {
+    const now = new Date("2026-07-06T09:30:00");
+
+    expect(getReminderLastDateAfterTimeChange("2026-07-06", "18:00", now)).toBe("");
+    expect(getReminderLastDateAfterTimeChange("2026-07-06", "09:00", now)).toBe("2026-07-06");
+    expect(getReminderLastDateAfterTimeChange("2026-07-05", "18:00", now)).toBe("2026-07-05");
   });
 
   it("snoozes only enabled reminders for the selected day", () => {

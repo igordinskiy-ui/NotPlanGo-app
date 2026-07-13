@@ -1050,11 +1050,17 @@ textarea {
 
 .reminderStatus {
   display: grid;
-  gap: 4px;
+  grid-template-columns: 1fr;
+  gap: 8px;
   margin-bottom: 10px;
   border-radius: 8px;
   background: var(--app-accent-soft);
   padding: 11px 12px;
+}
+
+.reminderStatus div {
+  display: grid;
+  gap: 2px;
 }
 
 .reminderStatus strong {
@@ -1063,7 +1069,9 @@ textarea {
   line-height: 1.2;
 }
 
-.reminderStatus span {
+.reminderStatus span,
+.reminderStatus p {
+  margin: 0;
   color: var(--app-muted);
   font-size: 0.78rem;
   font-weight: 800;
@@ -1072,17 +1080,20 @@ textarea {
 
 .reminderRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px 58px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "copy toggle"
+    "time time";
   align-items: center;
   gap: 8px;
-  min-height: 70px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-card-soft);
   padding: 10px;
 }
 
-.reminderRow div {
+.reminderRowCopy {
+  grid-area: copy;
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -1102,6 +1113,7 @@ textarea {
 }
 
 .reminderControls input {
+  grid-area: time;
   min-height: 48px;
   width: 100%;
   border: 1px solid var(--app-border);
@@ -1121,6 +1133,42 @@ textarea {
   font-weight: 900;
 }
 
+.reminderSwitch {
+  grid-area: toggle;
+  min-width: 104px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-solid) !important;
+  color: var(--app-muted) !important;
+}
+
+.reminderSwitch.active {
+  border-color: var(--app-accent);
+  background: var(--app-accent) !important;
+  color: #fff !important;
+}
+
+.reminderDaysHeader,
+.reminderCheckHeader {
+  display: grid;
+  gap: 2px;
+  padding: 2px 2px 0;
+}
+
+.reminderDaysHeader strong,
+.reminderCheckHeader strong {
+  color: var(--app-text);
+  font-size: 0.9rem;
+  line-height: 1.1;
+}
+
+.reminderDaysHeader span,
+.reminderCheckHeader span {
+  color: var(--app-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .reminderDays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1128,7 +1176,9 @@ textarea {
 }
 
 .reminderDays button {
+  position: relative;
   min-height: 40px;
+  border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-card-soft);
   color: var(--app-muted);
@@ -1137,12 +1187,29 @@ textarea {
 }
 
 .reminderDays button.active {
+  border-color: var(--app-accent);
   background: var(--app-accent-soft);
   color: var(--app-accent-strong);
 }
 
+.reminderDays button.active::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--app-accent);
+}
+
 .reminderTestButton {
   width: 100%;
+}
+
+.reminderTestButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .reminderTestGrid {

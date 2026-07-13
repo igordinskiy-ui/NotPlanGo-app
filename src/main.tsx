@@ -173,6 +173,13 @@ export function getNextReminderDelayMs(now: Date, reminderTime: string, lastDate
 export function getReminderLastDateAfterEnable(now: Date, reminderTime: string, activeDays: ReminderWeekday[] = reminderWeekdays) {
   return shouldSendDailyReminder(now, reminderTime, "", activeDays) ? toISO(now) : "";
 }
+export function getReminderLastDateAfterTimeChange(lastDate: string, reminderTime: string, now = new Date()) {
+  if (!isReminderTime(reminderTime) || lastDate !== toISO(now)) return lastDate;
+  const [hours, minutes] = reminderTime.split(":").map(Number);
+  const target = new Date(now);
+  target.setHours(hours, minutes, 0, 0);
+  return target > now ? "" : lastDate;
+}
 export function formatRuCount(count: number, forms: [string, string, string]) {
   const absCount = Math.abs(count);
   const lastTwo = absCount % 100;
@@ -230,6 +237,13 @@ export function getNextReminderSummary(settings: PlannerSettings, now = new Date
   const today = toISO(now);
   const dayLabel = day === today ? "сегодня" : day === addDays(today, 1) ? "завтра" : next.at.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
   return `${next.title}: ${dayLabel} в ${next.time}`;
+}
+export function getReminderScheduleCopy(days: ReminderWeekday[]) {
+  const normalized = normalizeReminderDays(days);
+  if (normalized.length === 7) return "каждый день";
+  if (normalized.join(",") === "1,2,3,4,5") return "по будням";
+  if (normalized.join(",") === "6,7") return "по выходным";
+  return normalized.map((day) => dayNames[day - 1]).join(", ");
 }
 export function snoozeRemindersForDate(settings: PlannerSettings, day: string) {
   return {
@@ -834,29 +848,44 @@ function getPwaRuntimeStatus(): PwaRuntimeStatus {
   };
 }
 
-async function showPlannerNotification(title: string, body: string, tag = "notplango-daily-reminder", url = "/", actions: PlannerNotificationAction[] = []) {
-  if (!("Notification" in window)) return "unsupported" as const;
-  const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
-  if (permission !== "granted") return "denied" as const;
+async function showPlannerNotification(
+  title: string,
+  body: string,
+  tag = "notplango-daily-reminder",
+  url = "/",
+  actions: PlannerNotificationAction[] = [],
+  requestPermission = false,
+) {
+  try {
+    if (!("Notification" in window)) return "unsupported" as const;
+    const permission = Notification.permission === "granted"
+      ? "granted"
+      : requestPermission
+        ? await Notification.requestPermission()
+        : Notification.permission;
+    if (permission !== "granted") return "denied" as const;
 
-  if ("serviceWorker" in navigator) {
-    const registration = await navigator.serviceWorker.ready.catch(() => null);
-    if (registration?.showNotification) {
-      const options: ServiceWorkerNotificationOptions = {
-        body,
-        icon: "/icon-192.png",
-        badge: "/icon-192.png",
-        tag,
-        data: { url },
-        actions,
-      };
-      await registration.showNotification(title, options);
-      return "sent" as const;
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready.catch(() => null);
+      if (registration?.showNotification) {
+        const options: ServiceWorkerNotificationOptions = {
+          body,
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          tag,
+          data: { url },
+          actions,
+        };
+        await registration.showNotification(title, options);
+        return "sent" as const;
+      }
     }
-  }
 
-  new Notification(title, { body, icon: "/icon-192.png", tag, data: { url } });
-  return "sent" as const;
+    new Notification(title, { body, icon: "/icon-192.png", tag, data: { url } });
+    return "sent" as const;
+  } catch {
+    return "failed" as const;
+  }
 }
 
 const reminderNotificationActions: PlannerNotificationAction[] = [
@@ -989,7 +1018,14 @@ function App() {
     return () => window.clearTimeout(id);
   }, [toast]);
   useEffect(() => {
-    setNotificationPermission(getBrowserNotificationPermission());
+    const refreshNotificationPermission = () => setNotificationPermission(getBrowserNotificationPermission());
+    refreshNotificationPermission();
+    window.addEventListener("focus", refreshNotificationPermission);
+    window.addEventListener("pageshow", refreshNotificationPermission);
+    return () => {
+      window.removeEventListener("focus", refreshNotificationPermission);
+      window.removeEventListener("pageshow", refreshNotificationPermission);
+    };
   }, []);
   useEffect(() => {
     if (!appReady || needsOnboarding || deepLinkHandledRef.current) return;
@@ -1055,8 +1091,8 @@ function App() {
         time: state.settings.reminderTime,
         lastDate: state.settings.reminderLastDate,
         days: state.settings.reminderDays,
-        body: () => buildDailyReminderBody(state, today),
-        shouldSkip: () => shouldSkipReminderForDay(state, today, "plan"),
+        body: () => buildDailyReminderBody(state, toISO(new Date())),
+        shouldSkip: () => shouldSkipReminderForDay(state, toISO(new Date()), "plan"),
         tag: "notplango-plan-reminder",
         url: "/?tab=today",
         markSent: () => updateState((current) => ({ ...current, settings: { ...current.settings, reminderLastDate: toISO(new Date()) } })),
@@ -1066,39 +1102,49 @@ function App() {
         time: state.settings.reviewReminderTime,
         lastDate: state.settings.reviewReminderLastDate,
         days: state.settings.reminderDays,
-        body: () => buildReviewReminderBody(state, today),
-        shouldSkip: () => shouldSkipReminderForDay(state, today, "review"),
+        body: () => buildReviewReminderBody(state, toISO(new Date())),
+        shouldSkip: () => shouldSkipReminderForDay(state, toISO(new Date()), "review"),
         tag: "notplango-review-reminder",
         url: "/?tab=today&focus=summary",
         markSent: () => updateState((current) => ({ ...current, settings: { ...current.settings, reviewReminderLastDate: toISO(new Date()) } })),
       },
     ].filter((config) => config.enabled);
-    if (reminderConfigs.length === 0) return;
+    if (reminderConfigs.length === 0 || getBrowserNotificationPermission() !== "granted") return;
     let cancelled = false;
+    let sending = false;
     let timeoutId = 0;
 
     const sendReminder = async () => {
-      for (const config of reminderConfigs) {
-        if (cancelled || !shouldSendDailyReminder(new Date(), config.time, config.lastDate, config.days)) continue;
-        if (config.shouldSkip()) {
-          config.markSent();
-          continue;
-        }
-        const result = await showPlannerNotification("NotPlanGo", config.body(), config.tag, config.url, reminderNotificationActions);
-        if (cancelled) return;
-        if (result === "sent") {
-          config.markSent();
-        } else if (result === "denied") {
+      if (sending) return;
+      sending = true;
+      try {
+        for (const config of reminderConfigs) {
+          if (cancelled || !shouldSendDailyReminder(new Date(), config.time, config.lastDate, config.days)) continue;
+          if (config.shouldSkip()) {
+            config.markSent();
+            continue;
+          }
+          const result = await showPlannerNotification("NotPlanGo", config.body(), config.tag, config.url, reminderNotificationActions);
+          if (cancelled) return;
+          if (result === "sent") {
+            config.markSent();
+          } else if (result === "denied") {
           updateState((current) => ({
             ...current,
             settings: { ...current.settings, remindersEnabled: false, reviewReminderEnabled: false },
           }));
           setToast("Уведомления запрещены в браузере");
           return;
+        } else if (result === "failed") {
+          setToast("Не удалось отправить уведомление");
+          return;
         } else {
           setToast("Уведомления не поддерживаются");
           return;
         }
+        }
+      } finally {
+        sending = false;
       }
     };
 
@@ -1117,10 +1163,14 @@ function App() {
 
     schedule();
     document.addEventListener("visibilitychange", checkVisible);
+    window.addEventListener("focus", checkVisible);
+    window.addEventListener("pageshow", checkVisible);
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
       document.removeEventListener("visibilitychange", checkVisible);
+      window.removeEventListener("focus", checkVisible);
+      window.removeEventListener("pageshow", checkVisible);
     };
   }, [
     appReady,
@@ -1403,6 +1453,7 @@ function App() {
       isReview ? "notplango-review-reminder" : "notplango-plan-reminder",
       isReview ? "/?tab=today&focus=summary" : "/?tab=today",
       reminderNotificationActions,
+      true,
     );
     setNotificationPermission(getBrowserNotificationPermission());
     if (result === "sent") {
@@ -1424,6 +1475,8 @@ function App() {
     } else if (result === "denied") {
       updateState((current) => ({ ...current, settings: { ...current.settings, remindersEnabled: false, reviewReminderEnabled: false } }));
       setToast("Уведомления запрещены в браузере");
+    } else if (result === "failed") {
+      setToast("Не удалось отправить уведомление");
     } else {
       setToast("Уведомления не поддерживаются");
     }
@@ -1448,11 +1501,31 @@ function App() {
   };
 
   const setReminderTime = (reminderTime: string) => {
-    updateState((current) => ({ ...current, settings: { ...current.settings, reminderTime: isReminderTime(reminderTime) ? reminderTime : current.settings.reminderTime } }));
+    updateState((current) => {
+      const nextTime = isReminderTime(reminderTime) ? reminderTime : current.settings.reminderTime;
+      return {
+        ...current,
+        settings: {
+          ...current.settings,
+          reminderTime: nextTime,
+          reminderLastDate: getReminderLastDateAfterTimeChange(current.settings.reminderLastDate, nextTime),
+        },
+      };
+    });
   };
 
   const setReviewReminderTime = (reviewReminderTime: string) => {
-    updateState((current) => ({ ...current, settings: { ...current.settings, reviewReminderTime: isReminderTime(reviewReminderTime) ? reviewReminderTime : current.settings.reviewReminderTime } }));
+    updateState((current) => {
+      const nextTime = isReminderTime(reviewReminderTime) ? reviewReminderTime : current.settings.reviewReminderTime;
+      return {
+        ...current,
+        settings: {
+          ...current.settings,
+          reviewReminderTime: nextTime,
+          reviewReminderLastDate: getReminderLastDateAfterTimeChange(current.settings.reviewReminderLastDate, nextTime),
+        },
+      };
+    });
   };
 
   const toggleReminderWeekday = (day: ReminderWeekday) => {
@@ -1476,9 +1549,10 @@ function App() {
       isReview ? "notplango-test-review-reminder" : "notplango-test-plan-reminder",
       isReview ? "/?tab=today&focus=summary" : "/?tab=today",
       reminderNotificationActions,
+      true,
     );
     setNotificationPermission(getBrowserNotificationPermission());
-    setToast(result === "sent" ? (isReview ? "Тест итога отправлен" : "Тест плана отправлен") : result === "denied" ? "Уведомления запрещены в браузере" : "Уведомления не поддерживаются");
+    setToast(result === "sent" ? (isReview ? "Тест итога отправлен" : "Тест плана отправлен") : result === "denied" ? "Уведомления запрещены в браузере" : result === "failed" ? "Не удалось отправить уведомление" : "Уведомления не поддерживаются");
   };
 
   const snoozeRemindersToday = () => {
@@ -2082,6 +2156,8 @@ function SettingsScreen(props: ScreenProps) {
   const remindersActive = props.state.settings.remindersEnabled || props.state.settings.reviewReminderEnabled;
   const permissionCopy = getNotificationPermissionCopy(props.notificationPermission, remindersActive);
   const nextReminder = getNextReminderSummary(props.state.settings);
+  const reminderSchedule = getReminderScheduleCopy(props.state.settings.reminderDays);
+  const reminderTestsDisabled = props.notificationPermission === "denied" || props.notificationPermission === "unsupported";
   const pwaReadinessItems = getPwaReadinessItems(props.pwaStatus);
   const installAction = getPwaInstallActionCopy(props.pwaStatus, props.installPromptAvailable);
   return (
@@ -2150,29 +2226,56 @@ function SettingsScreen(props: ScreenProps) {
           <span>{permissionCopy.label}</span>
         </div>
         <div className="reminderStatus">
-          <strong>{nextReminder}</strong>
-          <span>{permissionCopy.hint}</span>
+          <div>
+            <span>Разрешение</span>
+            <strong>{permissionCopy.label}</strong>
+          </div>
+          <div>
+            <span>Следующее</span>
+            <strong>{nextReminder}</strong>
+          </div>
+          <div>
+            <span>Дни</span>
+            <strong>{reminderSchedule}</strong>
+          </div>
+          <p>{permissionCopy.hint}</p>
         </div>
         <div className="reminderControls">
           <div className="reminderRow">
-            <div>
+            <div className="reminderRowCopy">
               <strong>План дня</strong>
               <span>Открыть фокус, задачи и привычки</span>
             </div>
-            <input type="time" value={props.state.settings.reminderTime} onChange={(event) => props.setReminderTime(event.target.value)} />
-            <button className={props.state.settings.remindersEnabled ? "secondaryButton" : ""} onClick={() => props.setReminderEnabled(!props.state.settings.remindersEnabled)}>
-              {props.state.settings.remindersEnabled ? "Выкл" : "Вкл"}
+            <input className="reminderTimeInput" type="time" aria-label="Время напоминания: План дня" value={props.state.settings.reminderTime} onChange={(event) => props.setReminderTime(event.target.value)} />
+            <button
+              className={props.state.settings.remindersEnabled ? "reminderSwitch active" : "reminderSwitch"}
+              onClick={() => props.setReminderEnabled(!props.state.settings.remindersEnabled)}
+              role="switch"
+              type="button"
+              aria-checked={props.state.settings.remindersEnabled}
+            >
+              {props.state.settings.remindersEnabled ? "Включено" : "Выключено"}
             </button>
           </div>
           <div className="reminderRow">
-            <div>
+            <div className="reminderRowCopy">
               <strong>Итог дня</strong>
               <span>Закрыть сон, энергию, настроение</span>
             </div>
-            <input type="time" value={props.state.settings.reviewReminderTime} onChange={(event) => props.setReviewReminderTime(event.target.value)} />
-            <button className={props.state.settings.reviewReminderEnabled ? "secondaryButton" : ""} onClick={() => props.setReviewReminderEnabled(!props.state.settings.reviewReminderEnabled)}>
-              {props.state.settings.reviewReminderEnabled ? "Выкл" : "Вкл"}
+            <input className="reminderTimeInput" type="time" aria-label="Время напоминания: Итог дня" value={props.state.settings.reviewReminderTime} onChange={(event) => props.setReviewReminderTime(event.target.value)} />
+            <button
+              className={props.state.settings.reviewReminderEnabled ? "reminderSwitch active" : "reminderSwitch"}
+              onClick={() => props.setReviewReminderEnabled(!props.state.settings.reviewReminderEnabled)}
+              role="switch"
+              type="button"
+              aria-checked={props.state.settings.reviewReminderEnabled}
+            >
+              {props.state.settings.reviewReminderEnabled ? "Включено" : "Выключено"}
             </button>
+          </div>
+          <div className="reminderDaysHeader">
+            <strong>Дни отправки</strong>
+            <span>Общие для плана и итога</span>
           </div>
           <div className="reminderDays" aria-label="Дни уведомлений">
             {reminderWeekdays.map((day) => (
@@ -2181,17 +2284,27 @@ function SettingsScreen(props: ScreenProps) {
                 key={day}
                 onClick={() => props.toggleReminderWeekday(day)}
                 type="button"
+                aria-pressed={props.state.settings.reminderDays.includes(day)}
+                aria-label={`${fullDayNames[day - 1]} ${props.state.settings.reminderDays.includes(day) ? "включён" : "выключен"}`}
               >
                 {dayNames[day - 1]}
               </button>
             ))}
           </div>
-          <div className="reminderTestGrid">
-            <button className="secondaryButton reminderTestButton" onClick={() => props.sendTestReminder("plan")}>Тест плана</button>
-            <button className="secondaryButton reminderTestButton" onClick={() => props.sendTestReminder("review")}>Тест итога</button>
+          <div className="reminderCheckHeader">
+            <strong>Проверка</strong>
+            <span>Отправьте тест после разрешения уведомлений</span>
           </div>
-          <button className="secondaryButton reminderTestButton" onClick={props.snoozeRemindersToday}>Не сегодня</button>
-          <p className="reminderSnoozeHint">Откладывает включенные напоминания до завтра, не меняя расписание.</p>
+          <div className="reminderTestGrid">
+            <button className="secondaryButton reminderTestButton" disabled={reminderTestsDisabled} onClick={() => props.sendTestReminder("plan")}>Тест плана</button>
+            <button className="secondaryButton reminderTestButton" disabled={reminderTestsDisabled} onClick={() => props.sendTestReminder("review")}>Тест итога</button>
+          </div>
+          {remindersActive ? (
+            <>
+              <button className="secondaryButton reminderTestButton reminderSnoozeButton" onClick={props.snoozeRemindersToday}>Не сегодня</button>
+              <p className="reminderSnoozeHint">Откладывает включенные напоминания до завтра, не меняя расписание.</p>
+            </>
+          ) : null}
         </div>
         <p className="cardHint">Напоминание работает локально через браузерные уведомления. Для надежных фоновых push-уведомлений позже понадобится серверная синхронизация.</p>
       </article>

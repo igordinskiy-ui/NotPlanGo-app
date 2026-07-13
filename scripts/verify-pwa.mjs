@@ -76,6 +76,12 @@ assert(sw.includes('self.addEventListener("install"'), "service worker install h
 assert(sw.includes('self.addEventListener("activate"'), "service worker activate handler missing");
 assert(sw.includes('self.addEventListener("fetch"'), "service worker fetch handler missing");
 assert(sw.includes("caches.match(\"/index.html\")"), "service worker offline navigation fallback missing");
+assert(sw.includes('self.addEventListener("notificationclick"'), "service worker notificationclick handler missing");
+assert(sw.includes('event.action === "snooze"'), "service worker notification snooze action missing");
+assert(sw.includes("action=snooze-reminders"), "service worker notification snooze deep link missing");
+assert(sw.includes("parsedTargetUrl.origin === self.location.origin"), "service worker notification click must guard same-origin targets");
+assert(sw.includes("client.navigate(targetUrl)"), "service worker notification click must navigate existing clients");
+assert(sw.includes("self.clients.openWindow(targetUrl)"), "service worker notification click must open the PWA when no client exists");
 
 const vercel = readJson("vercel.json");
 const vercelHeaderText = JSON.stringify(vercel.headers ?? []);
