@@ -53,35 +53,30 @@ for (const requiredFile of [
   "public/icon-192.png",
   "public/icon-512.png",
   "public/maskable-icon-512.png",
-  "public/sw.js",
+  "src/sw.ts",
   "vercel.json",
   "netlify.toml",
 ]) {
   assert(exists(requiredFile), `${requiredFile} is missing`);
 }
 
-const sw = readText("public/sw.js");
-for (const appShellFile of [
-  "/",
-  "/index.html",
-  "/manifest.webmanifest",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/maskable-icon-512.png",
-  "/apple-touch-icon.png",
-]) {
-  assert(sw.includes(`"${appShellFile}"`), `service worker app shell missing ${appShellFile}`);
-}
-assert(sw.includes('self.addEventListener("install"'), "service worker install handler missing");
+const sw = readText("src/sw.ts");
+assert(sw.includes("precacheAndRoute(self.__WB_MANIFEST)"), "service worker Workbox precache missing");
+assert(sw.includes("cleanupOutdatedCaches()"), "service worker Workbox cache cleanup missing");
+assert(sw.includes("createHandlerBoundToURL(\"/index.html\")"), "service worker offline navigation fallback missing");
+assert(sw.includes("caches.delete(\"notplango-v3\")"), "service worker old cache migration missing");
 assert(sw.includes('self.addEventListener("activate"'), "service worker activate handler missing");
-assert(sw.includes('self.addEventListener("fetch"'), "service worker fetch handler missing");
-assert(sw.includes("caches.match(\"/index.html\")"), "service worker offline navigation fallback missing");
 assert(sw.includes('self.addEventListener("notificationclick"'), "service worker notificationclick handler missing");
 assert(sw.includes('event.action === "snooze"'), "service worker notification snooze action missing");
 assert(sw.includes("action=snooze-reminders"), "service worker notification snooze deep link missing");
 assert(sw.includes("parsedTargetUrl.origin === self.location.origin"), "service worker notification click must guard same-origin targets");
 assert(sw.includes("client.navigate(targetUrl)"), "service worker notification click must navigate existing clients");
 assert(sw.includes("self.clients.openWindow(targetUrl)"), "service worker notification click must open the PWA when no client exists");
+
+const viteConfig = readText("vite.config.ts");
+for (const expected of ["VitePWA", "strategies: \"injectManifest\"", "srcDir: \"src\"", "filename: \"sw.ts\"", "injectRegister: false", "manifest: false", "globPatterns: [\"**/*.{js,css,html,png,svg,webmanifest}\"]"]) {
+  assert(viteConfig.includes(expected), `vite.config.ts missing PWA setting: ${expected}`);
+}
 
 const vercel = readJson("vercel.json");
 const vercelHeaderText = JSON.stringify(vercel.headers ?? []);
