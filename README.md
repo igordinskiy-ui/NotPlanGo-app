@@ -13,6 +13,9 @@ It brings the week, daily tasks, habits, mood, energy, sleep, and short daily re
 - Track habits across the week.
 - Move unfinished tasks forward without losing context.
 - Add tasks for today, tomorrow, or a future date.
+- Set task priorities and repeat daily or weekly work.
+- Find tasks, goals, and daily notes through search.
+- Review unfinished tasks from earlier days before planning ahead.
 - Review sleep, energy, mood, and the result of the day.
 - Keep personal planning data on the device.
 
@@ -32,7 +35,7 @@ A simple weekly habit tracker with large tap targets and clear completion states
 
 **Settings**
 
-Habit editing, color themes, storage status, JSON import/export, and local backup restore.
+Habit editing, color themes, local reminder controls, storage status, JSON import/export, weekly Markdown export, and local backup restore.
 
 ## Mobile-First Experience
 
@@ -51,9 +54,29 @@ NotPlanGo is built around phone use:
 
 NotPlanGo is local-first.
 
-Your planner data is stored in the browser on your device. There is no account system, backend database, or server sync in the current version.
+Your planner data is stored locally in this browser and on this device: the primary copy, an IndexedDB snapshot, and a browser auto-backup. Clearing browser/site data or losing the device can remove all of them. There is no account system, backend database, or server sync in the current version.
 
-For portability and backup, the app includes JSON export and import.
+For an independent backup that can move between devices, regularly download a JSON export and store it outside the browser. Import replaces the current planner data. Reminders run while the browser or installed PWA is open; reliable background delivery is not part of the current version.
+
+## Backup and Recovery
+
+- **JSON export** is the only portable backup. Keep exported files outside the browser before clearing site data, changing devices, or resetting the app.
+- **Restore backup** uses the latest local IndexedDB snapshot and falls back to the browser's emergency auto-backup. Both copies are available only in the same browser on the same device.
+- **Import JSON** replaces the current planner state. The app accepts supported planner versions and rejects malformed, oversized, or structurally unsafe files.
+
+## Development
+
+Requires Node.js 22 or newer.
+
+```bash
+npm ci
+npm run dev
+npm test
+npm run build
+npm run verify:pwa
+```
+
+See [architecture](docs/ARCHITECTURE.md), [contributing](CONTRIBUTING.md), [privacy](PRIVACY.md), and the [roadmap](ROADMAP.md) for implementation boundaries and planned work.
 
 ## Installable PWA
 

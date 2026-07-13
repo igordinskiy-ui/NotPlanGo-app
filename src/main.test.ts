@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   addDays,
   buildDailyReminderBody,
   buildReviewReminderBody,
   buildWeekMarkdown,
   compactBackup,
+  createDebouncedStateSaver,
+  createSerialWriteQueue,
   createEmptyState,
   createTask,
   formatRuCount,
@@ -28,6 +30,7 @@ import {
   normalizeReminderDays,
   normalizeState,
   parsePlannerDeepLink,
+  parseAutoBackupSnapshot,
   searchPlannerState,
   shouldSendDailyReminder,
   shouldSkipReminderForDay,
@@ -35,6 +38,8 @@ import {
   themePresets,
   toggleReminderDay,
   updateTaskMetadata,
+  validateImportedPlannerState,
+  type PlannerSettings,
 } from "./main";
 
 describe("planner week rollover", () => {
@@ -250,7 +255,7 @@ describe("notification reminders", () => {
 
   it("explains browser notification permission states", () => {
     expect(getNotificationPermissionCopy("default", false).label).toBe("нужно разрешение");
-    expect(getNotificationPermissionCopy("granted", true).hint).toBe("Напоминания включены и работают локально на этом устройстве.");
+    expect(getNotificationPermissionCopy("granted", true).hint).toBe("Напоминания работают, пока NotPlanGo открыт в браузере или PWA на этом устройстве.");
     expect(getNotificationPermissionCopy("denied", false).label).toBe("запрещены");
     expect(getNotificationPermissionCopy("unsupported", false).hint).toBe("Этот браузер не поддерживает уведомления.");
   });
@@ -448,11 +453,11 @@ describe("import normalization", () => {
     const normalized = normalizeState({
       activeWeekStart: "2026-07-06",
       tasks: {},
-      settings: { startMode: "paid" as "demo", weeklyExportReminder: "yes" as unknown as boolean, theme: "neon" as "olive", lastExportAt: 123 as unknown as string },
+      settings: { startMode: "paid", weeklyExportReminder: "yes", theme: "neon", lastExportAt: 123 } as unknown as Partial<PlannerSettings>,
     });
 
     expect(normalized.settings.startMode).toBe("demo");
-    expect(normalized.settings.weeklyExportReminder).toBe(true);
+    expect(normalized.settings).not.toHaveProperty("weeklyExportReminder");
     expect(normalized.settings.theme).toBe("olive");
     expect(normalized.settings.lastExportAt).toBe("");
     expect(normalized.settings.remindersEnabled).toBe(false);
@@ -462,6 +467,17 @@ describe("import normalization", () => {
     expect(normalized.settings.reviewReminderEnabled).toBe(false);
     expect(normalized.settings.reviewReminderTime).toBe("21:30");
     expect(normalized.settings.reviewReminderLastDate).toBe("");
+  });
+
+  it("accepts bounded planner exports and rejects malformed or future data", () => {
+    const state = createEmptyState("2026-07-06");
+    state.tasks["2026-07-06"] = [createTask("Valid")];
+    expect(validateImportedPlannerState(state)).toBe(true);
+    expect(validateImportedPlannerState({})).toBe(false);
+    expect(validateImportedPlannerState({ ...state, version: 4 })).toBe(false);
+    expect(validateImportedPlannerState({ ...state, tasks: { "2026-02-30": [] } })).toBe(false);
+    expect(validateImportedPlannerState({ ...state, tasks: { "2026-07-06": [createTask("x".repeat(501))] } })).toBe(false);
+    expect(validateImportedPlannerState({ ...state, tasks: { "2026-07-06": [createTask("One", false, { id: "same" }), createTask("Two", false, { id: "same" })] } })).toBe(false);
   });
 });
 
@@ -475,5 +491,69 @@ describe("backup snapshots", () => {
 
     expect(backup.label).toBe("Manual");
     expect(parsed.backups).toEqual([]);
+  });
+
+  it("parses a valid auto-backup and safely rejects corrupt data", () => {
+    const state = createEmptyState("2026-07-06");
+    state.tasks["2026-07-06"] = [createTask("Preserved")];
+    const backup = compactBackup(state);
+
+    expect(parseAutoBackupSnapshot(backup)?.tasks["2026-07-06"][0].title).toBe("Preserved");
+    expect(parseAutoBackupSnapshot({ ...backup, data: "not json" })).toBeNull();
+  });
+});
+
+describe("durable storage writes", () => {
+  it("serializes IndexedDB writes and recovers after a failed write", async () => {
+    const queue = createSerialWriteQueue();
+    const order: string[] = [];
+    let releaseFirst: (() => void) | undefined;
+    const first = queue(() => new Promise<void>((resolve) => {
+      releaseFirst = () => {
+        order.push("first");
+        resolve();
+      };
+    }));
+    const second = queue(async () => {
+      order.push("second");
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(order).toEqual([]);
+    expect(releaseFirst).toBeTypeOf("function");
+    releaseFirst!();
+    await Promise.all([first, second]);
+    expect(order).toEqual(["first", "second"]);
+
+    await expect(queue(async () => { throw new Error("IndexedDB failed"); })).rejects.toThrow("IndexedDB failed");
+    await queue(async () => {
+      order.push("after failure");
+    });
+    expect(order).toEqual(["first", "second", "after failure"]);
+  });
+
+  it("coalesces rapid persistence requests and flushes the latest state", async () => {
+    vi.useFakeTimers();
+    try {
+      const saved: number[] = [];
+      const saver = createDebouncedStateSaver(async (value: number) => {
+        saved.push(value);
+      }, 400);
+
+      saver.schedule(1);
+      saver.schedule(2);
+      saver.schedule(3);
+      await vi.advanceTimersByTimeAsync(400);
+      expect(saved).toEqual([3]);
+
+      saver.schedule(4);
+      await saver.flush();
+      expect(saved).toEqual([3, 4]);
+      await vi.advanceTimersByTimeAsync(400);
+      expect(saved).toEqual([3, 4]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

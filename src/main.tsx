@@ -17,7 +17,6 @@ type ReminderWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type PlannerNotificationPermission = NotificationPermission | "unsupported";
 export type PlannerSettings = {
   startMode: "demo" | "empty";
-  weeklyExportReminder: boolean;
   theme: PlannerTheme;
   lastExportAt: string;
   remindersEnabled: boolean;
@@ -89,6 +88,12 @@ const STORAGE_KEY = "notplango-state-v3";
 const LEGACY_STORAGE_KEYS = ["notplango-state-v2", "notplango-state-v1"];
 const AUTO_BACKUP_KEY = "notplango-auto-backup-v1";
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
+const MAX_IMPORTED_DAYS = 520;
+const MAX_TASKS_PER_DAY = 200;
+const MAX_GOALS_PER_WEEK = 50;
+const MAX_HABITS = 100;
+const MAX_TEXT_LENGTH = 500;
+const MAX_SUMMARY_LENGTH = 5_000;
 const dayNames = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const reminderWeekdays: ReminderWeekday[] = [1, 2, 3, 4, 5, 6, 7];
 const fullDayNames = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
@@ -218,7 +223,7 @@ export function shouldSkipReminderForDay(state: PlannerState, day: string, kind:
 export function getNotificationPermissionCopy(permission: PlannerNotificationPermission, enabled: boolean) {
   if (permission === "unsupported") return { label: "недоступны", hint: "Этот браузер не поддерживает уведомления." };
   if (permission === "denied") return { label: "запрещены", hint: "Разрешите уведомления в настройках браузера или телефона." };
-  if (permission === "granted") return { label: enabled ? "разрешены" : "разрешены", hint: enabled ? "Напоминания включены и работают локально на этом устройстве." : "Разрешение есть. Включите нужные напоминания ниже." };
+  if (permission === "granted") return { label: enabled ? "разрешены" : "разрешены", hint: enabled ? "Напоминания работают, пока NotPlanGo открыт в браузере или PWA на этом устройстве." : "Разрешение есть. Включите нужные напоминания ниже." };
   return { label: "нужно разрешение", hint: "При первом включении браузер попросит разрешить уведомления." };
 }
 export function getNextReminderSummary(settings: PlannerSettings, now = new Date()) {
@@ -330,7 +335,6 @@ function defaultLog(): DayLog {
 function defaultSettings(): PlannerSettings {
   return {
     startMode: "demo",
-    weeklyExportReminder: true,
     theme: "olive",
     lastExportAt: "",
     remindersEnabled: false,
@@ -374,6 +378,58 @@ export function isSavedPlannerState(value: unknown): value is SavedPlannerState 
   if (goals !== undefined && !Array.isArray(goals) && !isRecord(goals)) return false;
   if (value.habits !== undefined && !Array.isArray(value.habits)) return false;
   if (value.dayLogs !== undefined && !isRecord(value.dayLogs)) return false;
+  return true;
+}
+
+function isIsoDay(value: unknown) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  return toISO(parseISO(value)) === value;
+}
+
+function isSafeText(value: unknown, maxLength = MAX_TEXT_LENGTH): value is string {
+  return typeof value === "string" && value.length <= maxLength;
+}
+
+function isSafeId(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 128;
+}
+
+function hasUniqueIds(items: unknown[], predicate: (item: Record<string, unknown>) => boolean) {
+  const ids = new Set<string>();
+  return items.every((item) => {
+    if (!isRecord(item) || !predicate(item) || !isSafeId(item.id) || ids.has(item.id)) return false;
+    ids.add(item.id);
+    return true;
+  });
+}
+
+export function validateImportedPlannerState(value: unknown): value is SavedPlannerState {
+  if (!isSavedPlannerState(value)) return false;
+  if (value.version !== undefined && value.version !== 1 && value.version !== 2 && value.version !== 3) return false;
+  if (value.activeWeekStart !== undefined && !isIsoDay(value.activeWeekStart)) return false;
+  if (value.weekStart !== undefined && !isIsoDay(value.weekStart)) return false;
+  if (value.tasks === undefined && value.weeklyGoals === undefined && value.habits === undefined && value.dayLogs === undefined) return false;
+
+  if (value.tasks && (Object.keys(value.tasks).length > MAX_IMPORTED_DAYS || !Object.entries(value.tasks).every(([day, tasks]) =>
+    isIsoDay(day) && Array.isArray(tasks) && tasks.length <= MAX_TASKS_PER_DAY && hasUniqueIds(tasks, (task) =>
+      isSafeText(task.title) && typeof task.done === "boolean" && (task.priority === undefined || ["low", "normal", "high"].includes(String(task.priority))) && (task.repeat === undefined || ["none", "daily", "weekly"].includes(String(task.repeat))),
+    ),
+  ))) return false;
+
+  const validGoals = (goals: unknown[]) => goals.length <= MAX_GOALS_PER_WEEK && hasUniqueIds(goals, (goal) => isSafeText(goal.title) && typeof goal.done === "boolean");
+  if (Array.isArray(value.weeklyGoals) && !validGoals(value.weeklyGoals)) return false;
+  if (isRecord(value.weeklyGoals) && (Object.keys(value.weeklyGoals).length > MAX_IMPORTED_DAYS || !Object.entries(value.weeklyGoals).every(([week, goals]) =>
+    isIsoDay(week) && parseISO(week).getDay() === 1 && Array.isArray(goals) && validGoals(goals),
+  ))) return false;
+
+  if (value.habits && (value.habits.length > MAX_HABITS || !hasUniqueIds(value.habits, (habit) =>
+    isSafeText(habit.title) && isRecord(habit.completions) && Object.keys(habit.completions).length <= MAX_IMPORTED_DAYS && Object.entries(habit.completions).every(([day, done]) => isIsoDay(day) && typeof done === "boolean"),
+  ))) return false;
+
+  if (value.dayLogs && (Object.keys(value.dayLogs).length > MAX_IMPORTED_DAYS || !Object.entries(value.dayLogs).every(([day, log]) =>
+    isIsoDay(day) && isRecord(log) && Number.isFinite(log.sleep) && Number.isFinite(log.energy) && Number.isFinite(log.mood) && isSafeText(log.summary, MAX_SUMMARY_LENGTH),
+  ))) return false;
+
   return true;
 }
 
@@ -483,7 +539,6 @@ function normalizeSettings(settings: unknown): PlannerSettings {
   const reviewReminderLastDate = typeof settings.reviewReminderLastDate === "string" ? settings.reviewReminderLastDate : defaults.reviewReminderLastDate;
   return {
     startMode,
-    weeklyExportReminder: Boolean(settings.weeklyExportReminder ?? defaults.weeklyExportReminder),
     theme,
     lastExportAt,
     remindersEnabled: Boolean(settings.remindersEnabled ?? defaults.remindersEnabled),
@@ -568,16 +623,26 @@ function loadLocalState(): PlannerState | null {
       }
     }
   } catch {
-    localStorage.removeItem(STORAGE_KEY);
+    // Storage can itself be unavailable (private mode, disabled storage, or a
+    // quota error). A cleanup failure must not prevent the app from falling
+    // back to its other local copies or onboarding.
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Best-effort cleanup only.
+    }
   }
 
   return null;
 }
 
 async function loadStoredState(): Promise<PlannerState | null> {
-  const indexedState = await plannerStorage.loadLatestSnapshot();
-  if (indexedState) return indexedState;
-  return loadLocalState();
+  // localStorage is updated synchronously for every change, while IndexedDB is
+  // an asynchronous resilience copy. Prefer the synchronous source so an older
+  // IndexedDB transaction can never roll back a newer local change at startup.
+  const localState = loadLocalState();
+  if (localState) return localState;
+  return plannerStorage.loadLatestSnapshot();
 }
 
 export function ensureCurrentWeek(state: PlannerState, weekStart: string): PlannerState {
@@ -792,6 +857,51 @@ function saveIndexedSnapshot(state: PlannerState): Promise<void> {
   });
 }
 
+export function createSerialWriteQueue() {
+  let tail = Promise.resolve();
+  return (write: () => Promise<void>) => {
+    const next = tail.catch(() => undefined).then(write);
+    tail = next;
+    return next;
+  };
+}
+
+const queueIndexedSnapshot = createSerialWriteQueue();
+
+export function createDebouncedStateSaver<T>(save: (state: T) => Promise<void>, delay: number, onError: () => void = () => {}) {
+  let latest: T | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const flush = async () => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+    const state = latest;
+    latest = undefined;
+    if (state === undefined) return;
+    try {
+      await save(state);
+    } catch {
+      onError();
+    }
+  };
+
+  return {
+    schedule(state: T) {
+      latest = state;
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => void flush(), delay);
+    },
+    flush,
+    dispose() {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      timeoutId = undefined;
+      latest = undefined;
+    },
+  };
+}
+
 function loadIndexedSnapshot(): Promise<PlannerState | null> {
   if (!("indexedDB" in window)) return Promise.resolve(null);
   return new Promise((resolve) => {
@@ -833,21 +943,44 @@ function loadAutoBackupCreatedAt() {
   }
 }
 
+export function parseAutoBackupSnapshot(value: unknown): PlannerState | null {
+  if (!isRecord(value) || typeof value.data !== "string") return null;
+  try {
+    const parsed = JSON.parse(value.data) as unknown;
+    if (!isSavedPlannerState(parsed)) return null;
+    const restored = normalizeState(parsed);
+    return stateHasMojibake(restored) ? null : restored;
+  } catch {
+    return null;
+  }
+}
+
+function loadAutoBackupSnapshot(): PlannerState | null {
+  try {
+    const saved = localStorage.getItem(AUTO_BACKUP_KEY);
+    return saved ? parseAutoBackupSnapshot(JSON.parse(saved) as unknown) : null;
+  } catch {
+    return null;
+  }
+}
+
 const plannerStorage = {
   loadState: loadStoredState,
-  loadLatestSnapshot: loadIndexedSnapshot,
+  async loadLatestSnapshot() {
+    return (await loadIndexedSnapshot()) ?? loadAutoBackupSnapshot();
+  },
   latestBackupAt: loadAutoBackupCreatedAt,
   async saveState(state: PlannerState) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     const backup = compactBackup(state);
     localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(backup));
-    await saveIndexedSnapshot(state);
+    await queueIndexedSnapshot(() => saveIndexedSnapshot(state));
   },
   async getStatus(): Promise<StorageStatus> {
     const estimate = await navigator.storage?.estimate?.().catch(() => undefined);
     const persisted = await navigator.storage?.persisted?.().catch(() => null);
     const backupAt = loadAutoBackupCreatedAt();
-    const indexedBackup = await loadIndexedSnapshot();
+    const indexedBackup = await this.loadLatestSnapshot();
     return {
       usageLabel: estimate?.usage !== undefined ? formatBytes(estimate.usage) : "неизвестно",
       quotaLabel: estimate?.quota !== undefined ? formatBytes(estimate.quota) : "неизвестно",
@@ -1001,6 +1134,17 @@ function App() {
   const [updateWorker, setUpdateWorker] = useState<ServiceWorker | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const installPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
+  const stateSaverRef = useRef<ReturnType<typeof createDebouncedStateSaver<PlannerState>> | null>(null);
+  if (!stateSaverRef.current) {
+    stateSaverRef.current = createDebouncedStateSaver(
+      async (nextState) => {
+        await plannerStorage.saveState(nextState);
+        refreshStorageStatus();
+      },
+      400,
+      () => setToast("Данные не сохранились. Сделайте экспорт JSON."),
+    );
+  }
   const [installPromptAvailable, setInstallPromptAvailable] = useState(false);
   const deepLinkHandledRef = useRef(false);
   const updateRequestedRef = useRef(false);
@@ -1038,11 +1182,21 @@ function App() {
   }, []);
   useEffect(() => {
     if (!appReady || needsOnboarding) return;
-    plannerStorage
-      .saveState(state)
-      .then(refreshStorageStatus)
-      .catch(() => setToast("Данные не сохранились. Сделайте экспорт JSON."));
+    stateSaverRef.current?.schedule(state);
   }, [appReady, needsOnboarding, state]);
+  useEffect(() => {
+    const flush = () => void stateSaverRef.current?.flush();
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", flushWhenHidden);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+      void stateSaverRef.current?.flush();
+    };
+  }, []);
   useEffect(() => {
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", getThemeColor(state.settings.theme));
   }, [state.settings.theme]);
@@ -1478,11 +1632,11 @@ function App() {
         return;
       }
       const parsed = JSON.parse(await file.text()) as unknown;
-      if (!isSavedPlannerState(parsed)) {
+      if (!validateImportedPlannerState(parsed)) {
         setToast("Файл не похож на экспорт NotPlanGo");
         return;
       }
-      const nextState = normalizeState(parsed);
+      const nextState = normalizeState({ ...parsed, backups: [] });
       setState(ensureCurrentWeek(nextState, weekStart));
       setToast("Данные импортированы");
     } catch {
@@ -2002,7 +2156,7 @@ function TodayScreen(props: ScreenProps) {
       </article>
       <article className="card">
         <label className="summaryLabel" htmlFor="summary">Итог дня</label>
-        <textarea id="summary" value={props.todayLog.summary} onChange={(event) => props.setLog({ summary: event.target.value })} placeholder="Что сегодня получилось? Что забрать в завтра?" />
+        <textarea id="summary" maxLength={MAX_SUMMARY_LENGTH} value={props.todayLog.summary} onChange={(event) => props.setLog({ summary: event.target.value })} placeholder="Что сегодня получилось? Что забрать в завтра?" />
       </article>
     </section>
   );
@@ -2072,7 +2226,7 @@ function WeekScreen(props: ScreenProps) {
             setGoalTitle("");
           }}
         >
-          <input value={goalTitle} onChange={(event) => setGoalTitle(event.target.value)} placeholder="Добавить цель недели" />
+          <input maxLength={MAX_TEXT_LENGTH} value={goalTitle} onChange={(event) => setGoalTitle(event.target.value)} placeholder="Добавить цель недели" />
           <button type="submit" aria-label="Добавить цель недели">+</button>
         </form>
         <div className="goals">
@@ -2082,7 +2236,7 @@ function WeekScreen(props: ScreenProps) {
             props.currentGoals.map((goal, index) => (
               <div className={`goalItem ${goal.done ? "isDone" : ""}`} key={goal.id}>
                 <button onClick={() => props.toggleGoal(goal.id, props.viewWeekStart)} aria-label={`Отметить цель ${goal.title}`}>{goal.done ? "✓" : index + 1}</button>
-                <input value={goal.title} onChange={(event) => props.renameGoal(goal.id, event.target.value, props.viewWeekStart)} aria-label="Название цели недели" />
+                <input maxLength={MAX_TEXT_LENGTH} value={goal.title} onChange={(event) => props.renameGoal(goal.id, event.target.value, props.viewWeekStart)} aria-label="Название цели недели" />
                 <button className="deleteButton" onClick={() => props.deleteGoal(goal.id, props.viewWeekStart)} aria-label={`Удалить ${goal.title}`}>×</button>
               </div>
             ))
@@ -2227,7 +2381,10 @@ function HabitsScreen(props: ScreenProps) {
 function SettingsScreen(props: ScreenProps) {
   const [habitTitle, setHabitTitle] = useState("");
   const [query, setQuery] = useState("");
-  const searchResults = searchPlannerState(props.state, query);
+  const searchResults = useMemo(
+    () => searchPlannerState(props.state, query),
+    [query, props.state.tasks, props.state.weeklyGoals, props.state.dayLogs, props.state.habits],
+  );
   const logs = props.weekDays.map((day) => props.state.dayLogs[day] ?? defaultLog());
   const avg = (values: number[]) => values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : "0";
   const lastBackup = plannerStorage.latestBackupAt();
@@ -2274,7 +2431,7 @@ function SettingsScreen(props: ScreenProps) {
             setHabitTitle("");
           }}
         >
-          <input value={habitTitle} onChange={(event) => setHabitTitle(event.target.value)} placeholder="Новая привычка" />
+          <input maxLength={MAX_TEXT_LENGTH} value={habitTitle} onChange={(event) => setHabitTitle(event.target.value)} placeholder="Новая привычка" />
           <button type="submit" aria-label="Добавить привычку">+</button>
         </form>
         <div className="settingsList">
@@ -2283,7 +2440,7 @@ function SettingsScreen(props: ScreenProps) {
           ) : (
             props.state.habits.map((habit) => (
               <div className="settingsHabit" key={habit.id}>
-                <input value={habit.title} onChange={(event) => props.renameHabit(habit.id, event.target.value)} aria-label="Название привычки" />
+                <input maxLength={MAX_TEXT_LENGTH} value={habit.title} onChange={(event) => props.renameHabit(habit.id, event.target.value)} aria-label="Название привычки" />
                 <button onClick={() => props.deleteHabit(habit.id)} aria-label={`Удалить ${habit.title}`}>×</button>
               </div>
             ))
@@ -2371,7 +2528,7 @@ function SettingsScreen(props: ScreenProps) {
           </div>
           <div className="reminderCheckHeader">
             <strong>Проверка</strong>
-            <span>Отправьте тест после разрешения уведомлений</span>
+            <span>Отправьте тест: регулярные напоминания срабатывают, пока приложение открыто.</span>
           </div>
           <div className="reminderTestGrid">
             <button className="secondaryButton reminderTestButton" disabled={reminderTestsDisabled} onClick={() => props.sendTestReminder("plan")}>Тест плана</button>
@@ -2384,7 +2541,7 @@ function SettingsScreen(props: ScreenProps) {
             </>
           ) : null}
         </div>
-        <p className="cardHint">Напоминание работает локально через браузерные уведомления. Для надежных фоновых push-уведомлений позже понадобится серверная синхронизация.</p>
+        <p className="cardHint">Напоминания запускаются только в открытом NotPlanGo — в браузере или PWA. При закрытом приложении и в фоне доставка не гарантируется; для надежных push-уведомлений нужен сервер.</p>
       </article>
       <article className="card">
         <div className="sectionTitle"><h2>Поиск</h2></div>
@@ -2491,7 +2648,7 @@ function TaskList({
           <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -16 }} className={`taskItem ${task.done ? "isDone" : ""}`} key={task.id}>
             <motion.button whileTap={{ scale: 0.9 }} className="checkButton" onClick={() => onToggle(day, task.id)}>{task.done ? "✓" : ""}</motion.button>
             <div className="taskBody">
-              <input value={task.title} onChange={(event) => onRename(day, task.id, event.target.value)} aria-label="Название задачи" />
+              <input maxLength={MAX_TEXT_LENGTH} value={task.title} onChange={(event) => onRename(day, task.id, event.target.value)} aria-label="Название задачи" />
               <div className="taskMeta">
                 <button
                   type="button"
@@ -2641,7 +2798,7 @@ function AddTaskSheet({
           <h2>Новая задача</h2>
           <button type="button" className="sheetClose" onClick={onCancel} aria-label="Закрыть">×</button>
         </div>
-        <input className="sheetTaskInput" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Что нужно сделать?" />
+        <input className="sheetTaskInput" maxLength={MAX_TEXT_LENGTH} autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Что нужно сделать?" />
         <div className="dateQuickPick">
           <button type="button" className={mode === "today" ? "active" : ""} onClick={() => setMode("today")}>Сегодня</button>
           <button type="button" className={mode === "tomorrow" ? "active" : ""} onClick={() => setMode("tomorrow")}>Завтра</button>
